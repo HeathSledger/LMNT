@@ -66,5 +66,6 @@ dependencies {
     implementation("androidx.media3:media3-ui:$media3Version")
     implementation("io.coil-kt:coil:2.6.0")
     implementation("androidx.palette:palette-ktx:1.0.0")
+    implementation("com.github.bumptech.glide:glide:4.16.0")
 
 }

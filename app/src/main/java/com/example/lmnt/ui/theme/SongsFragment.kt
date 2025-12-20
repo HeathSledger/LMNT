@@ -99,40 +99,24 @@ class SongsFragment : Fragment() {
                     albumId
                 ).toString()
 
-                // Hier ist wichtig: Dein Song-Objekt muss nun 5 Parameter haben
-                songs.add(Song(id, title, artist, uri, artworkUri))
+                songs.add(Song(
+                    id = id,
+                    title = title,
+                    artist = artist,
+                    uri = uri,
+                    artworkUri = artworkUri,
+                    trackNumber = 0, // Standardwert, da in der Gesamtliste egal
+                    discNumber = 1   // Standardwert
+                ))
             }
         }
         adapter.notifyDataSetChanged()
     }
 
     private fun playSong(selectedSong: Song) {
-        val mainActivity = activity as? MainActivity
-        val controller = mainActivity?.mediaController ?: return
-
-        // Wir wandeln alle Songs in MediaItems um
-        val mediaItems = songs.map { song ->
-            val metadata = MediaMetadata.Builder()
-                .setTitle(song.title)
-                .setArtist(song.artist)
-                // Hier hattest du Uri.parse bereits korrekt genutzt
-                .setArtworkUri(Uri.parse(song.artworkUri))
-                .build()
-
-            MediaItem.Builder()
-                .setMediaId(song.uri) // MediaId darf ein String sein
-                // FIX: Hier muss Uri.parse() drumherum, damit aus dem String eine Uri wird
-                .setUri(Uri.parse(song.uri))
-                .setMediaMetadata(metadata)
-                .build()
-        }
-
-        // Index des gewählten Songs finden
         val startIndex = songs.indexOf(selectedSong)
-
-        // Liste an den Player übergeben
-        controller.setMediaItems(mediaItems, startIndex, 0L)
-        controller.prepare()
-        controller.play()
+        if (startIndex != -1) {
+            (activity as? MainActivity)?.playPlaylist(songs, startIndex)
+        }
     }
 }

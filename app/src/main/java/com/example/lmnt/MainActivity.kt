@@ -1,7 +1,10 @@
 package com.example.lmnt
 
 import android.content.ComponentName
+import android.content.ContentUris
+import android.net.Uri
 import android.os.Bundle
+import android.provider.MediaStore
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -9,6 +12,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
@@ -66,6 +70,187 @@ class MainActivity : AppCompatActivity() {
             }
         })
     }
+
+
+    fun loadSongsForAlbum(albumId: Long): List<Song> {
+        val songList = mutableListOf<Song>()
+        val uri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+        val selection = "${MediaStore.Audio.Media.ALBUM_ID} = ?"
+        val selectionArgs = arrayOf(albumId.toString())
+
+        val projection = arrayOf(
+            MediaStore.Audio.Media._ID,
+            MediaStore.Audio.Media.TITLE,
+            MediaStore.Audio.Media.ARTIST,
+            MediaStore.Audio.Media.DATA,
+            MediaStore.Audio.Media.ALBUM_ID,
+            MediaStore.Audio.Media.TRACK // Wichtig für Disc/Tracknummer
+        )
+
+        contentResolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
+            val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+            val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+            val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+            val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+            val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
+
+            while (cursor.moveToNext()) {
+                val trackRaw = cursor.getInt(trackCol)
+                // Umrechnung wie zuvor besprochen
+                val disc = if (trackRaw >= 1000) trackRaw / 1000 else 1
+                val track = if (trackRaw >= 1000) trackRaw % 1000 else trackRaw
+
+                val albumArtUri = ContentUris.withAppendedId(
+                    Uri.parse("content://media/external/audio/albumart"), albumId
+                ).toString()
+
+                songList.add(Song(
+                    id = cursor.getLong(idCol),
+                    title = cursor.getString(titleCol),
+                    artist = cursor.getString(artistCol),
+                    uri = cursor.getString(dataCol),
+                    artworkUri = albumArtUri,
+                    trackNumber = track,
+                    discNumber = disc
+                ))
+            }
+        }
+        return songList
+    }
+
+    fun playPlaylist(songs: List<Song>, startIndex: Int) {
+        val mediaItems = songs.map { song ->
+            MediaItem.Builder()
+                .setMediaId(song.id.toString())
+                .setUri(Uri.parse(song.uri))
+                .setMediaMetadata(
+                    MediaMetadata.Builder()
+                        .setTitle(song.title)
+                        .setArtist(song.artist)
+                        .setArtworkUri(Uri.parse(song.artworkUri))
+                        .build()
+                )
+                .build()
+        }
+
+        mediaController?.let { controller ->
+            controller.setMediaItems(mediaItems, startIndex, 0L)
+            controller.prepare()
+            controller.play()
+        }
+    }
+
+
+    fun loadArtists(): List<com.example.lmnt.model.Artist> {
+        val artistList = mutableListOf<com.example.lmnt.model.Artist>()
+        val uri = MediaStore.Audio.Artists.EXTERNAL_CONTENT_URI
+
+        // Wir fügen MediaStore.Audio.Artists._ID zur Projektion hinzu
+        val projection = arrayOf(
+            MediaStore.Audio.Artists._ID,           // WICHTIG: Die ID für deine Klasse
+            MediaStore.Audio.Artists.ARTIST,
+            MediaStore.Audio.Artists.NUMBER_OF_ALBUMS,
+            MediaStore.Audio.Artists.NUMBER_OF_TRACKS
+        )
+
+        contentResolver.query(uri, projection, null, null, "${MediaStore.Audio.Artists.ARTIST} ASC")?.use { cursor ->
+            val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Artists._ID) // Neu
+            val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Artists.ARTIST)
+            val albumsCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Artists.NUMBER_OF_ALBUMS)
+            val tracksCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Artists.NUMBER_OF_TRACKS)
+
+            while (cursor.moveToNext()) {
+                artistList.add(com.example.lmnt.model.Artist(
+                    id = cursor.getLong(idCol),      // Jetzt wird die ID korrekt übergeben
+                    name = cursor.getString(artistCol),
+                    albumCount = cursor.getInt(albumsCol),
+                    trackCount = cursor.getInt(tracksCol)
+                ))
+            }
+        }
+        return artistList
+    }
+
+    fun loadAlbenForArtist(artistName: String): List<com.example.lmnt.model.Album> {
+        val albumList = mutableListOf<com.example.lmnt.model.Album>()
+        val uri = MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI
+        val projection = arrayOf(
+            MediaStore.Audio.Albums._ID,
+            MediaStore.Audio.Albums.ALBUM,
+            MediaStore.Audio.Albums.ARTIST,
+            MediaStore.Audio.Albums.NUMBER_OF_SONGS
+        )
+
+        val selection = "${MediaStore.Audio.Albums.ARTIST} = ?"
+        val selectionArgs = arrayOf(artistName)
+
+        contentResolver.query(uri, projection, selection, selectionArgs, "${MediaStore.Audio.Albums.ALBUM} ASC")?.use { cursor ->
+            val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums._ID)
+            val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.ALBUM)
+            val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.ARTIST)
+            val countCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.NUMBER_OF_SONGS)
+
+            while (cursor.moveToNext()) {
+                val id = cursor.getLong(idCol)
+                val artworkUri = ContentUris.withAppendedId(
+                    Uri.parse("content://media/external/audio/albumart"), id
+                ).toString()
+
+                albumList.add(com.example.lmnt.model.Album(
+                    id,
+                    cursor.getString(albumCol),
+                    cursor.getString(artistCol),
+                    artworkUri,
+                    cursor.getInt(countCol)
+                ))
+            }
+        }
+        return albumList
+    }
+
+    fun loadSongsForArtistName(artistName: String): List<Song> {
+        val songList = mutableListOf<Song>()
+        val uri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+        val selection = "${MediaStore.Audio.Media.ARTIST} = ?"
+        val selectionArgs = arrayOf(artistName)
+
+        val projection = arrayOf(
+            MediaStore.Audio.Media._ID,
+            MediaStore.Audio.Media.TITLE,
+            MediaStore.Audio.Media.ARTIST,
+            MediaStore.Audio.Media.DATA,
+            MediaStore.Audio.Media.ALBUM_ID,
+            MediaStore.Audio.Media.TRACK
+        )
+
+        contentResolver.query(uri, projection, selection, selectionArgs, MediaStore.Audio.Media.TITLE + " ASC")?.use { cursor ->
+            val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+            val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+            val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+            val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+            val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+            val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
+
+            while (cursor.moveToNext()) {
+                val albumId = cursor.getLong(albumIdCol)
+                val artworkUri = ContentUris.withAppendedId(
+                    Uri.parse("content://media/external/audio/albumart"), albumId
+                ).toString()
+
+                songList.add(Song(
+                    id = cursor.getLong(idCol),
+                    title = cursor.getString(titleCol),
+                    artist = cursor.getString(artistCol),
+                    uri = cursor.getString(dataCol),
+                    artworkUri = artworkUri,
+                    trackNumber = cursor.getInt(trackCol) % 1000,
+                    discNumber = if (cursor.getInt(trackCol) >= 1000) cursor.getInt(trackCol) / 1000 else 1
+                ))
+            }
+        }
+        return songList
+    }
+
 
     override fun onStart() {
         super.onStart()
