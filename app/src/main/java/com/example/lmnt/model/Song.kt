@@ -1,0 +1,11 @@
+package com.example.lmnt
+
+import android.net.Uri
+
+data class Song(
+    val id: Long,
+    val title: String,
+    val artist: String,
+    val uri: String,
+    val artworkUri: String
+)
