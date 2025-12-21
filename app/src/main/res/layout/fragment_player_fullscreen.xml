@@ -58,9 +58,9 @@
             android:layout_marginTop="32dp"
             android:paddingStart="0dp"
             android:paddingEnd="0dp"
-            android:progressTint="#FFFFFF"
-            android:thumbTint="#FFFFFF"
-            android:progressBackgroundTint="#33FFFFFF"/>
+            android:progressTint="#757575"
+            android:thumbTint="#757575"
+            android:progressBackgroundTint="#36454F"/>
 
         <RelativeLayout
             android:layout_width="match_parent"
@@ -71,14 +71,16 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="0:00"
-                android:textSize="12sp" />
+                android:textSize="12sp"
+                android:textColor="#757575"/>
             <TextView
                 android:id="@+id/tvTotalTime"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_alignParentEnd="true"
                 android:text="0:00"
-                android:textSize="12sp" />
+                android:textSize="12sp"
+                android:textColor="#757575"/>
         </RelativeLayout>
 
         <LinearLayout

@@ -10,55 +10,52 @@ import com.bumptech.glide.Glide
 import com.example.lmnt.MainActivity
 import com.example.lmnt.R
 import com.example.lmnt.SongsAdapter
+import com.example.lmnt.Song
 
 class AlbumDetailFragment : Fragment(R.layout.fragment_album_detail) {
-
-    private var albumId: Long = -1
-    private var albumArt: String? = null
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Keys aus den Arguments holen
-        albumId = arguments?.getLong("albumId") ?: -1
-        albumArt = arguments?.getString("albumArt")
+        // 1. Daten aus den Arguments holen - WICHTIG: Key muss "artworkUri" sein!
+        val albumId = arguments?.getLong("albumId") ?: -1L
+        val albumArt = arguments?.getString("artworkUri") // KEY KORRIGIERT
 
         val imageView = view.findViewById<ImageView>(R.id.detailAlbumArt)
         val recyclerView = view.findViewById<RecyclerView>(R.id.rvAlbumSongs)
 
-        // 1. Cover laden
+        // 2. Cover laden mit Glide
         Glide.with(this)
             .load(albumArt)
             .placeholder(R.drawable.ic_music_note)
+            .error(R.drawable.ic_music_note)
             .centerCrop()
             .into(imageView)
 
-        // 2. Daten laden & sortieren
+        // 3. Daten über die MainActivity laden
         val mainActivity = (activity as? MainActivity)
         val songs = mainActivity?.loadSongsForAlbum(albumId) ?: emptyList()
 
-        // Sortierung nach Disc und dann Tracknummer (wichtig für Alben!)
+        // Sortierung nach Disc und dann Tracknummer
         val sortedSongs = songs.sortedWith(compareBy({ it.discNumber }, { it.trackNumber }))
 
-        // 3. Adapter konfigurieren
+        // 4. RecyclerView Setup
         recyclerView.layoutManager = LinearLayoutManager(context)
 
-        // HIER: showTrackNumber auf TRUE, damit im Album die Nummern erscheinen
+        // Adapter mit Klick-Logik
         recyclerView.adapter = SongsAdapter(sortedSongs, showTrackNumber = true) { clickedSong ->
             val index = sortedSongs.indexOf(clickedSong)
             if (index != -1) {
                 mainActivity?.playPlaylist(sortedSongs, index)
             }
         }
-
-
     }
 
     companion object {
         fun newInstance(albumId: Long, albumArt: String?) = AlbumDetailFragment().apply {
             arguments = Bundle().apply {
                 putLong("albumId", albumId)
-                putString("albumArt", albumArt)
+                putString("artworkUri", albumArt) // Dieser Key muss oben beim Auslesen exakt gleich sein
             }
         }
     }
