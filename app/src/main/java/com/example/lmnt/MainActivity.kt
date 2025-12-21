@@ -26,6 +26,7 @@ import com.example.lmnt.ui.theme.*
 import com.example.lmnt.viewmodel.MusicViewModel
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.common.util.concurrent.ListenableFuture
+import com.example.lmnt.ui.MenuHubFragment
 
 
 class MainActivity : AppCompatActivity() {
@@ -48,6 +49,12 @@ class MainActivity : AppCompatActivity() {
 
         btnMore.setOnClickListener { view ->
             val popup = androidx.appcompat.widget.PopupMenu(this, view)
+
+            val btnSettings = findViewById<ImageButton>(R.id.btnSettings) // Deine ID anpassen
+            btnSettings.setOnClickListener {
+                val menuHub = MenuHubFragment()
+                menuHub.show(supportFragmentManager, "MenuHub")
+            }
 
             when (viewPager.currentItem) {
                 1 -> { // Songs Tab
