@@ -18,8 +18,6 @@ import com.example.lmnt.R
 import com.example.lmnt.Song
 import com.example.lmnt.SongsAdapter
 import com.example.lmnt.MainActivity
-import androidx.media3.common.MediaItem
-import androidx.media3.common.MediaMetadata
 
 class SongsFragment : Fragment() {
 
@@ -30,10 +28,18 @@ class SongsFragment : Fragment() {
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        val view = inflater.inflate(R.layout.fragment_songs, container, false)
+        // Lädt das neue XML ohne Sidebar
+        return inflater.inflate(R.layout.fragment_songs, container, false)
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
 
         val recyclerView = view.findViewById<RecyclerView>(R.id.songsRecyclerView)
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
+
+        // Wichtig: Aktiviert die vertikale Scrollbar-Logik im Code
+        recyclerView.isVerticalScrollBarEnabled = true
 
         adapter = SongsAdapter(songs) { song ->
             playSong(song)
@@ -41,8 +47,6 @@ class SongsFragment : Fragment() {
         recyclerView.adapter = adapter
 
         checkPermissionsAndLoad()
-
-        return view
     }
 
     private fun checkPermissionsAndLoad() {
@@ -85,32 +89,33 @@ class SongsFragment : Fragment() {
 
             while (it.moveToNext()) {
                 val id = it.getLong(idCol)
-                val title = it.getString(titleCol)
-                val artist = it.getString(artistCol)
+                val title = it.getString(titleCol) ?: "Unbekannter Titel"
+                val artist = it.getString(artistCol) ?: "Unbekannter Künstler"
                 val albumId = it.getLong(albumIdCol)
 
                 val uri = ContentUris.withAppendedId(
                     MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id
                 ).toString()
 
-                // Wir bauen die Artwork-URI direkt hier zusammen
                 val artworkUri = ContentUris.withAppendedId(
                     Uri.parse("content://media/external/audio/albumart"),
                     albumId
                 ).toString()
 
+                // Korrekte Zuweisung mit benannten Parametern
                 songs.add(Song(
                     id = id,
                     title = title,
                     artist = artist,
                     uri = uri,
                     artworkUri = artworkUri,
-                    trackNumber = 0, // Standardwert, da in der Gesamtliste egal
-                    discNumber = 1   // Standardwert
+                    trackNumber = 0,
+                    discNumber = 1
                 ))
             }
         }
         adapter.notifyDataSetChanged()
+        adapter.setupSections()
     }
 
     private fun playSong(selectedSong: Song) {

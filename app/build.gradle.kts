@@ -67,5 +67,7 @@ dependencies {
     implementation("io.coil-kt:coil:2.6.0")
     implementation("androidx.palette:palette-ktx:1.0.0")
     implementation("com.github.bumptech.glide:glide:4.16.0")
+    implementation("com.simplecityapps:recyclerview-fastscroll:2.0.1")
+    implementation("com.simplecityapps:recyclerview-fastscroll:2.0.1")
 
 }
