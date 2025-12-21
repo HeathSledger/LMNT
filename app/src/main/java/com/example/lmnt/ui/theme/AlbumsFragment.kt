@@ -18,6 +18,10 @@ import com.example.lmnt.ui.AlbumDetailFragment
 class AlbumsFragment : Fragment() {
 
     private lateinit var recyclerView: RecyclerView
+
+    // Wir nutzen nur EINE Liste und EINEN Adapter für die Anzeige
+    private var allAlbums = listOf<Album>()
+    private val displayedAlbums = mutableListOf<Album>()
     private lateinit var albumAdapter: AlbumAdapter
 
     override fun onCreateView(
@@ -29,9 +33,13 @@ class AlbumsFragment : Fragment() {
         recyclerView = view.findViewById(R.id.rvAlbums)
         recyclerView.layoutManager = GridLayoutManager(context, 2)
 
-        val albums = loadAlbums()
+        // 1. Daten laden
+        allAlbums = loadAlbumsFromStorage()
+        displayedAlbums.clear()
+        displayedAlbums.addAll(allAlbums)
 
-        albumAdapter = AlbumAdapter(albums) { album ->
+        // 2. Adapter initialisieren (WICHTIG: Er nutzt displayedAlbums)
+        albumAdapter = AlbumAdapter(displayedAlbums) { album ->
             openAlbumDetails(album)
         }
         recyclerView.adapter = albumAdapter
@@ -40,7 +48,6 @@ class AlbumsFragment : Fragment() {
     }
 
     private fun openAlbumDetails(album: Album) {
-        // Wir übergeben ID und Artwork-Pfad an das neue Fragment
         val detailFragment = AlbumDetailFragment.newInstance(album.id, album.artworkUri)
 
         parentFragmentManager.beginTransaction()
@@ -50,10 +57,9 @@ class AlbumsFragment : Fragment() {
             .commit()
     }
 
-    private fun loadAlbums(): List<Album> {
+    private fun loadAlbumsFromStorage(): List<Album> {
         val albumList = mutableListOf<Album>()
         val uri = MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI
-
         val projection = arrayOf(
             MediaStore.Audio.Albums._ID,
             MediaStore.Audio.Albums.ALBUM,
@@ -61,10 +67,7 @@ class AlbumsFragment : Fragment() {
             MediaStore.Audio.Albums.NUMBER_OF_SONGS
         )
 
-        // Sortierung nach Album-Name
-        val sortOrder = "${MediaStore.Audio.Albums.ALBUM} ASC"
-
-        context?.contentResolver?.query(uri, projection, null, null, sortOrder)?.use { cursor ->
+        context?.contentResolver?.query(uri, projection, null, null, "${MediaStore.Audio.Albums.ALBUM} ASC")?.use { cursor ->
             val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums._ID)
             val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.ALBUM)
             val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.ARTIST)
@@ -72,19 +75,39 @@ class AlbumsFragment : Fragment() {
 
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idCol)
-                val albumName = cursor.getString(albumCol)
-                val artist = cursor.getString(artistCol)
-                val songCount = cursor.getInt(songsCountCol) // Das ist ein Int
-
-                // Erstellt die Uri für das Cover-Bild
                 val artworkUri = ContentUris.withAppendedId(
-                    Uri.parse("content://media/external/audio/albumart"),
-                    id
+                    Uri.parse("content://media/external/audio/albumart"), id
                 ).toString()
 
-                albumList.add(Album(id, albumName, artist, artworkUri, songCount))
+                albumList.add(Album(
+                    id,
+                    cursor.getString(albumCol) ?: "Unbekannt",
+                    cursor.getString(artistCol) ?: "Unbekannter Künstler",
+                    artworkUri,
+                    cursor.getInt(songsCountCol)
+                ))
             }
         }
         return albumList
+    }
+
+    // DIE SUCHFUNKTION (Wird von MainActivity aufgerufen)
+    fun filter(query: String) {
+        val lowerCaseQuery = query.lowercase()
+        val filtered = if (lowerCaseQuery.isEmpty()) {
+            allAlbums
+        } else {
+            allAlbums.filter {
+                // Achte darauf, ob dein Model "title" oder "album" heißt!
+                it.title.lowercase().contains(lowerCaseQuery) ||
+                        it.artist.lowercase().contains(lowerCaseQuery)
+            }
+        }
+        displayedAlbums.clear()
+        displayedAlbums.addAll(filtered)
+        // Sicherstellen, dass der Adapter existiert, bevor wir ihn benachrichtigen
+        if (::albumAdapter.isInitialized) {
+            albumAdapter.notifyDataSetChanged()
+        }
     }
 }

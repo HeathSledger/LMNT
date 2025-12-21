@@ -18,17 +18,19 @@ import com.example.lmnt.R
 import com.example.lmnt.Song
 import com.example.lmnt.SongsAdapter
 import com.example.lmnt.MainActivity
+import java.util.Locale
 
 class SongsFragment : Fragment() {
 
-    private val songs = mutableListOf<Song>()
+    // Wir brauchen nur zwei Listen:
+    private val allSongs = mutableListOf<Song>()      // Die komplette Mediathek
+    private val displayedSongs = mutableListOf<Song>() // Das, was der User gerade sieht (gefiltert)
     private lateinit var adapter: SongsAdapter
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        // Lädt das neue XML ohne Sidebar
         return inflater.inflate(R.layout.fragment_songs, container, false)
     }
 
@@ -38,13 +40,12 @@ class SongsFragment : Fragment() {
         val recyclerView = view.findViewById<RecyclerView>(R.id.songsRecyclerView)
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
 
-        // Wichtig: Aktiviert die vertikale Scrollbar-Logik im Code
-        recyclerView.isVerticalScrollBarEnabled = true
-
-        adapter = SongsAdapter(songs) { song ->
+        // Der Adapter nutzt IMMER displayedSongs
+        adapter = SongsAdapter(displayedSongs) { song ->
             playSong(song)
         }
         recyclerView.adapter = adapter
+        recyclerView.isVerticalScrollBarEnabled = true
 
         checkPermissionsAndLoad()
     }
@@ -65,7 +66,7 @@ class SongsFragment : Fragment() {
     }
 
     private fun loadSongs() {
-        songs.clear()
+        allSongs.clear()
         val projection = arrayOf(
             MediaStore.Audio.Media._ID,
             MediaStore.Audio.Media.TITLE,
@@ -102,26 +103,49 @@ class SongsFragment : Fragment() {
                     albumId
                 ).toString()
 
-                // Korrekte Zuweisung mit benannten Parametern
-                songs.add(Song(
+                allSongs.add(Song(
                     id = id,
                     title = title,
                     artist = artist,
                     uri = uri,
-                    artworkUri = artworkUri,
+                    artworkUri = artworkUri, // Kotlin weiß jetzt, dass dies ans Ende gehört
                     trackNumber = 0,
                     discNumber = 1
                 ))
             }
         }
+
+        // Initial alle Songs anzeigen
+        updateDisplayedSongs(allSongs)
+    }
+
+    // Diese Funktion aktualisiert die Anzeige und die Scrollbar-Buchstaben
+    private fun updateDisplayedSongs(newList: List<Song>) {
+        displayedSongs.clear()
+        displayedSongs.addAll(newList)
         adapter.notifyDataSetChanged()
-        adapter.setupSections()
+        adapter.setupSections() // Damit die Bubble die richtigen Buchstaben zeigt
+    }
+
+    // DIE SUCH-FUNKTION: Diese musst du von deiner MainActivity aus aufrufen!
+    fun filter(query: String) {
+        val lowerCaseQuery = query.lowercase(Locale.getDefault())
+        if (lowerCaseQuery.isEmpty()) {
+            updateDisplayedSongs(allSongs)
+        } else {
+            val filtered = allSongs.filter {
+                it.title.lowercase().contains(lowerCaseQuery) ||
+                        it.artist.lowercase().contains(lowerCaseQuery)
+            }
+            updateDisplayedSongs(filtered)
+        }
     }
 
     private fun playSong(selectedSong: Song) {
-        val startIndex = songs.indexOf(selectedSong)
+        val startIndex = displayedSongs.indexOf(selectedSong)
         if (startIndex != -1) {
-            (activity as? MainActivity)?.playPlaylist(songs, startIndex)
+            // Wir übergeben die aktuell sichtbare Liste (damit nur Suchergebnisse im Player landen)
+            (activity as? MainActivity)?.playPlaylist(displayedSongs, startIndex)
         }
     }
 }
