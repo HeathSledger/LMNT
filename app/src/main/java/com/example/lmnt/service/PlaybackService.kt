@@ -41,13 +41,22 @@ class PlaybackService : MediaSessionService() {
     }
 
     // Task für das Speichern in die Room-Datenbank
+    // Task für das Speichern in die Room-Datenbank
     private fun saveSongToHistory(songId: Long) {
         val calendar = Calendar.getInstance()
+
+        // Wir holen uns die Metadaten des aktuell geladenen Songs im Player
+        val currentMetadata = player.currentMediaItem?.mediaMetadata
+
         val historyEntry = PlaybackHistory(
             songId = songId,
-            year = calendar.get(Calendar.YEAR),
-            month = calendar.get(Calendar.MONTH) + 1, // Jan ist 0
-            timestamp = System.currentTimeMillis()
+            songTitle = currentMetadata?.title?.toString() ?: "Unknown Title",
+            artist = currentMetadata?.artist?.toString() ?: "Unknown Artist",
+            duration = player.duration.coerceAtLeast(0L), // ExoPlayer liefert die Dauer in ms
+            timestamp = System.currentTimeMillis(),
+            day = calendar.get(Calendar.DAY_OF_MONTH),
+            month = calendar.get(Calendar.MONTH) + 1,
+            year = calendar.get(Calendar.YEAR)
         )
 
         serviceScope.launch {

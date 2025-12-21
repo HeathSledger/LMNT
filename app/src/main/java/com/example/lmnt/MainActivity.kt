@@ -215,6 +215,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+
     override fun onStart() {
         super.onStart()
         val sessionToken = SessionToken(this, ComponentName(this, PlaybackService::class.java))

@@ -7,7 +7,12 @@ import androidx.room.PrimaryKey
 data class PlaybackHistory(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val songId: Long,
-    val timestamp: Long = System.currentTimeMillis(), // Wann wurde es gehört?
-    val year: Int, // Zum schnellen Filtern für "Wrapped"
-    val month: Int
+    val songTitle: String,
+    val artist: String,
+    val duration: Long, // Diese Zeile hinzufügen!
+    val timestamp: Long,
+    val day: Int,
+    val month: Int,
+    val year: Int
+
 )
