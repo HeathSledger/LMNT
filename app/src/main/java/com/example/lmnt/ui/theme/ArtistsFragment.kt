@@ -68,4 +68,23 @@ class ArtistsFragment : Fragment(R.layout.fragment_artists) {
             artistAdapter.notifyDataSetChanged()
         }
     }
+    private var isGridView = false // Merkt sich den aktuellen Modus
+
+    fun toggleViewMode() {
+        isGridView = !isGridView // Modus umkehren
+
+        val recyclerView = requireView().findViewById<RecyclerView>(R.id.rvArtists) // ID prüfen!
+
+        if (isGridView) {
+            // Gitter-Ansicht: z.B. 2 Spalten
+            recyclerView.layoutManager = androidx.recyclerview.widget.GridLayoutManager(context, 3)
+        } else {
+            // Listen-Ansicht: 1 Spalte
+            recyclerView.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(context)
+        }
+
+        // Optional: Hier könntest du dem Adapter sagen, dass er ein anderes Layout nutzen soll,
+        // falls sich die Items im Gitter optisch stark von der Liste unterscheiden.
+        recyclerView.adapter?.notifyDataSetChanged()
+    }
 }

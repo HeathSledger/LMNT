@@ -104,4 +104,18 @@ class AlbumsFragment : Fragment(R.layout.fragment_albums) {
         }
         return albumList
     }
+    fun changeGridColumns(count: Int) {
+        // ID korrigiert von albumsRecyclerView zu rvAlbums
+        val recyclerView = requireView().findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.rvAlbums)
+
+        val layoutManager = recyclerView.layoutManager as? androidx.recyclerview.widget.GridLayoutManager
+
+        if (layoutManager != null) {
+            layoutManager.spanCount = count
+            // Bei GridLayoutManager ist es oft besser, dem Adapter zu sagen,
+            // dass sich das Layout geändert hat, um die Item-Breiten neu zu berechnen
+            recyclerView.adapter?.notifyDataSetChanged()
+            layoutManager.requestLayout()
+        }
+    }
 }

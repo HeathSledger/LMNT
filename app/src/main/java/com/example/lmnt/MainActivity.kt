@@ -50,16 +50,11 @@ class MainActivity : AppCompatActivity() {
         val btnMore = findViewById<ImageButton>(R.id.btnMore)
 
         btnMore.setOnClickListener { view ->
-            // 1. PopupMenu Objekt erstellen
             val popup = androidx.appcompat.widget.PopupMenu(this, view)
 
-            // 2. Je nach Tab das richtige Menü laden
             when (viewPager.currentItem) {
                 1 -> { // Songs Tab
-                    // HIER die XML-Datei laden
                     popup.menuInflater.inflate(R.menu.menu_songs, popup.menu)
-
-                    // 3. Auf Klicks reagieren
                     popup.setOnMenuItemClickListener { item ->
                         val fragment = myAdapter.getFragment(1) as? SongsFragment
                         when (item.itemId) {
@@ -76,11 +71,30 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 2 -> { // Alben Tab
-                    // Hier könntest du z.B. R.menu.menu_albums laden
+                    popup.menuInflater.inflate(R.menu.menu_albums, popup.menu)
+                    popup.setOnMenuItemClickListener { item ->
+                        val fragment = myAdapter.getFragment(2) as? AlbumsFragment
+                        when (item.itemId) {
+                            R.id.grid_2 -> { fragment?.changeGridColumns(2); true }
+                            R.id.grid_3 -> { fragment?.changeGridColumns(3); true }
+                            R.id.grid_4 -> { fragment?.changeGridColumns(4); true }
+                            else -> false
+                        }
+                    }
                 }
-            }
+                3 -> { // Artists Tab
+                    popup.menuInflater.inflate(R.menu.menu_artists, popup.menu)
+                    popup.setOnMenuItemClickListener { item ->
+                        val fragment = myAdapter.getFragment(3) as? ArtistsFragment
+                        if (item.itemId == R.id.action_toggle_view) {
+                            fragment?.toggleViewMode()
+                            true
+                        } else false
+                    }
+                }
 
-            // 4. Das fertige Menü anzeigen
+            } // Ende des when-Blocks
+
             popup.show()
         }
 
