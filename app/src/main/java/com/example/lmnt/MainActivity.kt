@@ -45,6 +45,45 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+
+        // In der onCreate deiner MainActivity
+        val btnMore = findViewById<ImageButton>(R.id.btnMore)
+
+        btnMore.setOnClickListener { view ->
+            // 1. PopupMenu Objekt erstellen
+            val popup = androidx.appcompat.widget.PopupMenu(this, view)
+
+            // 2. Je nach Tab das richtige Menü laden
+            when (viewPager.currentItem) {
+                1 -> { // Songs Tab
+                    // HIER die XML-Datei laden
+                    popup.menuInflater.inflate(R.menu.menu_songs, popup.menu)
+
+                    // 3. Auf Klicks reagieren
+                    popup.setOnMenuItemClickListener { item ->
+                        val fragment = myAdapter.getFragment(1) as? SongsFragment
+                        when (item.itemId) {
+                            R.id.sort_az -> {
+                                fragment?.sortSongs(true)
+                                true
+                            }
+                            R.id.sort_za -> {
+                                fragment?.sortSongs(false)
+                                true
+                            }
+                            else -> false
+                        }
+                    }
+                }
+                2 -> { // Alben Tab
+                    // Hier könntest du z.B. R.menu.menu_albums laden
+                }
+            }
+
+            // 4. Das fertige Menü anzeigen
+            popup.show()
+        }
+
         // 1. ViewModel initialisieren
         musicViewModel = ViewModelProvider(this).get(MusicViewModel::class.java)
 

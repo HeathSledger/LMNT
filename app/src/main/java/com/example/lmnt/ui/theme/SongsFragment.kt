@@ -27,6 +27,17 @@ class SongsFragment : Fragment() {
     private val displayedSongs = mutableListOf<Song>() // Das, was der User gerade sieht (gefiltert)
     private lateinit var adapter: SongsAdapter
 
+    fun sortSongs(ascending: Boolean) {
+        if (ascending) {
+            allSongs.sortBy { it.title.lowercase() }
+        } else {
+            allSongs.sortByDescending { it.title.lowercase() }
+        }
+
+        // Wichtig: Auch die aktuell angezeigte (evtl. gefilterte) Liste aktualisieren
+        updateDisplayedSongs(allSongs)
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
