@@ -13,6 +13,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.ViewModelProvider
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -22,11 +23,11 @@ import androidx.viewpager2.widget.ViewPager2
 import coil.load
 import com.example.lmnt.model.Album
 import com.example.lmnt.model.Artist
-import com.example.lmnt.Song
 import com.example.lmnt.service.PlaybackService
 import com.example.lmnt.ui.AlbumsFragment
 import com.example.lmnt.ui.ArtistsFragment
 import com.example.lmnt.ui.theme.*
+import com.example.lmnt.viewmodel.MusicViewModel
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.common.util.concurrent.ListenableFuture
 
@@ -35,69 +36,30 @@ class MainActivity : AppCompatActivity() {
     private lateinit var viewPager: ViewPager2
     private lateinit var bottomNavigation: BottomNavigationView
     private lateinit var myAdapter: ViewPagerAdapter
+    private lateinit var musicViewModel: MusicViewModel
+
     private var controllerFuture: ListenableFuture<MediaController>? = null
     var mediaController: MediaController? = null
-
-    fun loadAlbenForArtist(artistName: String): List<com.example.lmnt.model.Album> {
-        val albumList = mutableListOf<com.example.lmnt.model.Album>()
-        val projection = arrayOf(
-            MediaStore.Audio.Albums._ID,
-            MediaStore.Audio.Albums.ALBUM,
-            MediaStore.Audio.Albums.ARTIST,
-            MediaStore.Audio.Albums.NUMBER_OF_SONGS
-        )
-
-        // Wir suchen Alben, die genau diesem Künstlernamen entsprechen
-        val selection = "${MediaStore.Audio.Albums.ARTIST} = ?"
-        val selectionArgs = arrayOf(artistName)
-
-        contentResolver.query(
-            MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI,
-            projection,
-            selection,
-            selectionArgs,
-            "${MediaStore.Audio.Albums.ALBUM} ASC"
-        )?.use { cursor ->
-            val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums._ID)
-            val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.ALBUM)
-            val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.ARTIST)
-            val countCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.NUMBER_OF_SONGS)
-
-            while (cursor.moveToNext()) {
-                val id = cursor.getLong(idCol)
-                // Erzeuge die URI für das Album-Cover
-                val artworkUri = ContentUris.withAppendedId(
-                    Uri.parse("content://media/external/audio/albumart"),
-                    id
-                ).toString()
-
-                albumList.add(com.example.lmnt.model.Album(
-                    id = id,
-                    title = cursor.getString(albumCol) ?: "Unbekanntes Album",
-                    artist = cursor.getString(artistCol) ?: "Unbekannt",
-                    artworkUri = artworkUri,
-                    songCount = cursor.getInt(countCol)
-                ))
-            }
-        }
-        return albumList
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // UI Initialisierung
+        // 1. ViewModel initialisieren
+        musicViewModel = ViewModelProvider(this).get(MusicViewModel::class.java)
+
+        // 2. UI Elemente finden
         viewPager = findViewById(R.id.viewPager)
         bottomNavigation = findViewById(R.id.bottomNavigation)
-
         val normalLayout = findViewById<LinearLayout>(R.id.normalToolbarLayout)
         val customSearchView = findViewById<SearchView>(R.id.customSearchView)
         val btnSearch = findViewById<ImageButton>(R.id.btnSearch)
 
+        // 3. ViewPager & Daten Setup
         setupViewPager()
+        loadInitialData()
 
-        // --- MANUELLE SUCH-LOGIK ---
+        // 4. Such-Logik
         btnSearch.setOnClickListener {
             normalLayout.visibility = View.GONE
             customSearchView.visibility = View.VISIBLE
@@ -113,7 +75,6 @@ class MainActivity : AppCompatActivity() {
 
         customSearchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?): Boolean = false
-
             override fun onQueryTextChange(newText: String?): Boolean {
                 val queryText = newText ?: ""
                 val currentPos = viewPager.currentItem
@@ -127,31 +88,36 @@ class MainActivity : AppCompatActivity() {
                 return true
             }
         })
+
+        // 5. Back Button Handling
         onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 val fragmentContainer = findViewById<View>(R.id.fragment_container)
-                val customSearchView = findViewById<SearchView>(R.id.customSearchView)
-                val normalLayout = findViewById<LinearLayout>(R.id.normalToolbarLayout)
+                val searchView = findViewById<SearchView>(R.id.customSearchView)
+                val toolbar = findViewById<LinearLayout>(R.id.normalToolbarLayout)
 
-                if (customSearchView.visibility == View.VISIBLE) {
-                    // 1. Suche schließen
-                    customSearchView.visibility = View.GONE
-                    normalLayout.visibility = View.VISIBLE
+                if (searchView.visibility == View.VISIBLE) {
+                    searchView.visibility = View.GONE
+                    toolbar.visibility = View.VISIBLE
                 } else if (supportFragmentManager.backStackEntryCount > 0) {
-                    // 2. Fragment zurückgehen
                     supportFragmentManager.popBackStack()
-                    // Container verstecken, wenn das letzte Fragment geschlossen wurde
                     if (supportFragmentManager.backStackEntryCount <= 1) {
                         fragmentContainer.visibility = View.GONE
                     }
                 } else {
-                    // 3. App ganz normal verlassen
-                    isEnabled = false // Callback deaktivieren
-                    onBackPressedDispatcher.onBackPressed() // Standard-Zurück ausführen
-                    isEnabled = true // Wieder aktivieren für den nächsten Start
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                    isEnabled = true
                 }
             }
         })
+    }
+
+    private fun loadInitialData() {
+        // Daten laden und ins ViewModel schieben
+        musicViewModel.setSongs(loadAllSongs())
+        musicViewModel.setAlbums(loadAlbumsFromStorage())
+        musicViewModel.setArtists(loadArtists())
     }
 
     private fun setupViewPager() {
@@ -186,18 +152,63 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
+    // --- MEDIASTORE LOADERS ---
 
+    fun loadAllSongs(): List<Song> {
+        val songList = mutableListOf<Song>()
+        val projection = arrayOf(
+            MediaStore.Audio.Media._ID,
+            MediaStore.Audio.Media.TITLE,
+            MediaStore.Audio.Media.ARTIST,
+            MediaStore.Audio.Media.DATA,
+            MediaStore.Audio.Media.ALBUM_ID,
+            MediaStore.Audio.Media.TRACK
+        )
+        contentResolver.query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection, null, null, "${MediaStore.Audio.Media.TITLE} ASC")?.use { cursor ->
+            val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+            val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+            val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+            val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+            val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+            val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
 
-    // --- MEDIASTORE LOADER ---
+            while (cursor.moveToNext()) {
+                val albumId = cursor.getLong(albumIdCol)
+                val artworkUri = ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), albumId).toString()
+                songList.add(Song(
+                    id = cursor.getLong(idCol),
+                    title = cursor.getString(titleCol) ?: "Unbekannt",
+                    artist = cursor.getString(artistCol) ?: "Unbekannt",
+                    uri = cursor.getString(dataCol) ?: "",
+                    artworkUri = artworkUri,
+                    trackNumber = cursor.getInt(trackCol) % 1000, // Prüfe ob Song.kt hier Int will
+                    discNumber = 1 // Falls dein Model discNumber erwartet
+                ))
+            }
+        }
+        return songList
+    }
+
+    fun loadAlbumsFromStorage(): List<Album> {
+        val albumList = mutableListOf<Album>()
+        val projection = arrayOf(MediaStore.Audio.Albums._ID, MediaStore.Audio.Albums.ALBUM, MediaStore.Audio.Albums.ARTIST, MediaStore.Audio.Albums.NUMBER_OF_SONGS)
+        contentResolver.query(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, projection, null, null, "${MediaStore.Audio.Albums.ALBUM} ASC")?.use { cursor ->
+            val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums._ID)
+            val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.ALBUM)
+            val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.ARTIST)
+            val countCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.NUMBER_OF_SONGS)
+            while (cursor.moveToNext()) {
+                val id = cursor.getLong(idCol)
+                val artworkUri = ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), id).toString()
+                albumList.add(Album(id, cursor.getString(albumCol) ?: "Unbekannt", cursor.getString(artistCol) ?: "Unbekannt", artworkUri, cursor.getInt(countCol)))
+            }
+        }
+        return albumList
+    }
 
     fun loadArtists(): List<Artist> {
         val artistList = mutableListOf<Artist>()
-        val projection = arrayOf(
-            MediaStore.Audio.Artists._ID,
-            MediaStore.Audio.Artists.ARTIST,
-            MediaStore.Audio.Artists.NUMBER_OF_ALBUMS,
-            MediaStore.Audio.Artists.NUMBER_OF_TRACKS
-        )
+        val projection = arrayOf(MediaStore.Audio.Artists._ID, MediaStore.Audio.Artists.ARTIST, MediaStore.Audio.Artists.NUMBER_OF_ALBUMS, MediaStore.Audio.Artists.NUMBER_OF_TRACKS)
         contentResolver.query(MediaStore.Audio.Artists.EXTERNAL_CONTENT_URI, projection, null, null, "${MediaStore.Audio.Artists.ARTIST} ASC")?.use { cursor ->
             val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Artists._ID)
             val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Artists.ARTIST)
@@ -212,82 +223,66 @@ class MainActivity : AppCompatActivity() {
 
     fun loadSongsForAlbum(albumId: Long): List<Song> {
         val songList = mutableListOf<Song>()
-        val projection = arrayOf(
-            MediaStore.Audio.Media._ID,
-            MediaStore.Audio.Media.TITLE,
-            MediaStore.Audio.Media.ARTIST,
-            MediaStore.Audio.Media.DATA,
-            MediaStore.Audio.Media.TRACK
-        )
+        val projection = arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.DATA, MediaStore.Audio.Media.TRACK)
         val selection = "${MediaStore.Audio.Media.ALBUM_ID} = ?"
-        val selectionArgs = arrayOf(albumId.toString())
-
-        contentResolver.query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection, selection, selectionArgs, "${MediaStore.Audio.Media.TRACK} ASC")?.use { cursor ->
+        contentResolver.query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection, selection, arrayOf(albumId.toString()), "${MediaStore.Audio.Media.TRACK} ASC")?.use { cursor ->
             val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
             val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
             val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
             val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
             val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
-
             while (cursor.moveToNext()) {
-                val trackRaw = cursor.getInt(trackCol)
-                val albumArtUri = ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), albumId).toString()
-
+                val artworkUri = ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), albumId).toString()
                 songList.add(Song(
                     id = cursor.getLong(idCol),
                     title = cursor.getString(titleCol) ?: "Unbekannt",
                     artist = cursor.getString(artistCol) ?: "Unbekannt",
-                    uri = cursor.getString(dataCol),
-                    artworkUri = albumArtUri,
-                    trackNumber = if (trackRaw >= 1000) trackRaw % 1000 else trackRaw,
-                    discNumber = if (trackRaw >= 1000) trackRaw / 1000 else 1
+                    uri = cursor.getString(dataCol) ?: "",      // Der Musik-Pfad
+                    artworkUri = artworkUri,                    // Der Cover-Pfad
+                    trackNumber = cursor.getInt(trackCol) % 1000,
+                    discNumber = 1
                 ))
             }
         }
         return songList
     }
+
+    fun loadAlbenForArtist(artistName: String): List<Album> {
+        val albumList = mutableListOf<Album>()
+        val projection = arrayOf(MediaStore.Audio.Albums._ID, MediaStore.Audio.Albums.ALBUM, MediaStore.Audio.Albums.ARTIST, MediaStore.Audio.Albums.NUMBER_OF_SONGS)
+        contentResolver.query(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, projection, "${MediaStore.Audio.Albums.ARTIST} = ?", arrayOf(artistName), "${MediaStore.Audio.Albums.ALBUM} ASC")?.use { cursor ->
+            val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums._ID)
+            val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.ALBUM)
+            val countCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.NUMBER_OF_SONGS)
+            while (cursor.moveToNext()) {
+                val id = cursor.getLong(idCol)
+                val artworkUri = ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), id).toString()
+                albumList.add(Album(id, cursor.getString(albumCol) ?: "Unbekannt", artistName, artworkUri, cursor.getInt(countCol)))
+            }
+        }
+        return albumList
+    }
+
     fun loadSongsForArtistName(artistName: String): List<Song> {
         val songList = mutableListOf<Song>()
-        val selection = "${MediaStore.Audio.Media.ARTIST} = ?"
-        val selectionArgs = arrayOf(artistName)
-        val projection = arrayOf(
-            MediaStore.Audio.Media._ID,
-            MediaStore.Audio.Media.TITLE,
-            MediaStore.Audio.Media.ARTIST,
-            MediaStore.Audio.Media.DATA,
-            MediaStore.Audio.Media.ALBUM_ID,
-            MediaStore.Audio.Media.TRACK
-        )
-
-        contentResolver.query(
-            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-            projection,
-            selection,
-            selectionArgs,
-            "${MediaStore.Audio.Media.TITLE} ASC"
-        )?.use { cursor ->
+        val projection = arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.DATA, MediaStore.Audio.Media.ALBUM_ID, MediaStore.Audio.Media.TRACK)
+        contentResolver.query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection, "${MediaStore.Audio.Media.ARTIST} = ?", arrayOf(artistName), "${MediaStore.Audio.Media.TITLE} ASC")?.use { cursor ->
             val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
             val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
-            val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
             val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+            val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
             val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
             val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
-
             while (cursor.moveToNext()) {
-                val albumId = cursor.getLong(albumIdCol)
-                val artworkUri = ContentUris.withAppendedId(
-                    Uri.parse("content://media/external/audio/albumart"),
-                    albumId
-                ).toString()
-
+                val artworkUri = ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), cursor.getLong(albumIdCol)).toString()
                 songList.add(Song(
                     id = cursor.getLong(idCol),
                     title = cursor.getString(titleCol) ?: "Unbekannt",
                     artist = cursor.getString(artistCol) ?: "Unbekannt",
-                    uri = cursor.getString(dataCol),
+                    uri = cursor.getString(dataCol) ?: "",
                     artworkUri = artworkUri,
-                    trackNumber = cursor.getInt(trackCol) % 1000,
-                    discNumber = if (cursor.getInt(trackCol) >= 1000) cursor.getInt(trackCol) / 1000 else 1
+                    trackNumber = cursor.getInt(trackCol) % 1000, // Prüfe ob Song.kt hier Int will
+                    discNumber = 1 // Falls dein Model discNumber erwartet
                 ))
             }
         }
@@ -295,6 +290,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     // --- PLAYBACK ---
+
     fun playPlaylist(songs: List<Song>, startIndex: Int) {
         val mediaItems = songs.map { song ->
             MediaItem.Builder()
@@ -339,32 +335,27 @@ class MainActivity : AppCompatActivity() {
         val albumArtIv = findViewById<ImageView>(R.id.miniPlayerAlbumArt)
         val playPauseBtn = findViewById<ImageButton>(R.id.btnMiniPlayerPlay)
 
-        // Zu Beginn ist der Mini Player unsichtbar
         miniPlayerLayout.visibility = View.GONE
 
         mediaController?.addListener(object : Player.Listener {
             override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
-                // Sobald Metadaten kommen, Player anzeigen
                 if (mediaMetadata.title != null) {
                     miniPlayerLayout.visibility = View.VISIBLE
-                }
-
-                titleTv.text = mediaMetadata.title ?: "Keine Wiedergabe"
-                artistTv.text = mediaMetadata.artist ?: ""
-                albumArtIv.load(mediaMetadata.artworkUri) {
-                    placeholder(R.drawable.ic_music_note)
-                    error(R.drawable.ic_music_note)
+                    titleTv.text = mediaMetadata.title
+                    artistTv.text = mediaMetadata.artist
+                    albumArtIv.load(mediaMetadata.artworkUri) {
+                        placeholder(R.drawable.ic_music_note)
+                        error(R.drawable.ic_music_note)
+                    }
                 }
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 playPauseBtn.setImageResource(if (isPlaying) R.drawable.player_pause else R.drawable.player_play)
-                // Sicherheitshalber: Wenn er spielt, muss er sichtbar sein
                 if (isPlaying) miniPlayerLayout.visibility = View.VISIBLE
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
-                // Verstecken, wenn die Playlist vorbei ist oder ein Fehler auftritt
                 if (playbackState == Player.STATE_IDLE || playbackState == Player.STATE_ENDED) {
                     miniPlayerLayout.visibility = View.GONE
                 }
@@ -375,28 +366,14 @@ class MainActivity : AppCompatActivity() {
             mediaController?.let { if (it.isPlaying) it.pause() else it.play() }
         }
 
-        // --- SWIPE & CLICK LOGIK ---
         miniPlayerLayout.setOnTouchListener(object : View.OnTouchListener {
             private var startY = 0f
-            private val SWIPE_THRESHOLD = 150 // Mindestdistanz für einen Swipe
-
             override fun onTouch(v: View, event: android.view.MotionEvent): Boolean {
                 when (event.action) {
-                    android.view.MotionEvent.ACTION_DOWN -> {
-                        startY = event.y
-                        return true // Wir fangen das Event ab
-                    }
+                    android.view.MotionEvent.ACTION_DOWN -> { startY = event.y; return true }
                     android.view.MotionEvent.ACTION_UP -> {
-                        val endY = event.y
-                        val deltaY = startY - endY
-
-                        if (deltaY > SWIPE_THRESHOLD) {
-                            // Nach oben gewischt -> Fullscreen
-                            openFullscreen()
-                        } else if (Math.abs(deltaY) < 20) {
-                            // Nur kurz getippt (kein Swipe) -> Fullscreen
-                            openFullscreen()
-                        }
+                        val deltaY = startY - event.y
+                        if (deltaY > 150 || Math.abs(deltaY) < 20) openFullscreen()
                         return true
                     }
                 }
@@ -405,7 +382,6 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    // Kleine Hilfsfunktion zum Öffnen
     private fun openFullscreen() {
         PlayerFullscreenFragment().show(supportFragmentManager, "player")
     }

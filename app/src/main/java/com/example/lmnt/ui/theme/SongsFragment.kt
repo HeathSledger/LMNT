@@ -66,57 +66,14 @@ class SongsFragment : Fragment() {
     }
 
     private fun loadSongs() {
-        allSongs.clear()
-        val projection = arrayOf(
-            MediaStore.Audio.Media._ID,
-            MediaStore.Audio.Media.TITLE,
-            MediaStore.Audio.Media.ARTIST,
-            MediaStore.Audio.Media.ALBUM_ID
-        )
+        // Hol dir die Daten einfach aus dem ViewModel der MainActivity
+        val viewModel = androidx.lifecycle.ViewModelProvider(requireActivity()).get(com.example.lmnt.viewmodel.MusicViewModel::class.java)
 
-        val cursor = requireContext().contentResolver.query(
-            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-            projection,
-            null,
-            null,
-            MediaStore.Audio.Media.TITLE + " ASC"
-        )
-
-        cursor?.use {
-            val idCol = it.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-            val titleCol = it.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
-            val artistCol = it.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
-            val albumIdCol = it.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
-
-            while (it.moveToNext()) {
-                val id = it.getLong(idCol)
-                val title = it.getString(titleCol) ?: "Unbekannter Titel"
-                val artist = it.getString(artistCol) ?: "Unbekannter Künstler"
-                val albumId = it.getLong(albumIdCol)
-
-                val uri = ContentUris.withAppendedId(
-                    MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id
-                ).toString()
-
-                val artworkUri = ContentUris.withAppendedId(
-                    Uri.parse("content://media/external/audio/albumart"),
-                    albumId
-                ).toString()
-
-                allSongs.add(Song(
-                    id = id,
-                    title = title,
-                    artist = artist,
-                    uri = uri,
-                    artworkUri = artworkUri, // Kotlin weiß jetzt, dass dies ans Ende gehört
-                    trackNumber = 0,
-                    discNumber = 1
-                ))
-            }
+        viewModel.songs.observe(viewLifecycleOwner) { songList ->
+            allSongs.clear()
+            allSongs.addAll(songList)
+            updateDisplayedSongs(allSongs)
         }
-
-        // Initial alle Songs anzeigen
-        updateDisplayedSongs(allSongs)
     }
 
     // Diese Funktion aktualisiert die Anzeige und die Scrollbar-Buchstaben
