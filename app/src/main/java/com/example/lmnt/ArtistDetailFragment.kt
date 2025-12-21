@@ -7,6 +7,7 @@ import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.lmnt.MainActivity
+import com.example.lmnt.MusicLoader
 import com.example.lmnt.R
 import com.example.lmnt.adapter.AlbumAdapter
 import com.example.lmnt.SongsAdapter
@@ -26,7 +27,7 @@ class ArtistDetailFragment : Fragment(R.layout.fragment_artist_detail) {
         val mainActivity = (activity as? MainActivity)
 
         // 1. Alben des Künstlers laden (Horizontal)
-        val alben = mainActivity?.loadAlbenForArtist(artistName) ?: emptyList()
+        val alben = MusicLoader.loadAlbenForArtist(requireContext().contentResolver, artistName)
         rvAlben.layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
 
         // ALBUM ADAPTER SETZEN
@@ -42,17 +43,18 @@ class ArtistDetailFragment : Fragment(R.layout.fragment_artist_detail) {
         }
 
         // 2. Alle Songs des Künstlers laden (Vertikal)
-        val allSongs = mainActivity?.loadSongsForArtistName(artistName) ?: emptyList()
+        val songs = MusicLoader.loadSongsForArtistName(requireContext().contentResolver, artistName)
         rvSongs.layoutManager = LinearLayoutManager(context)
+        // Erstelle eine ArrayList aus den geladenen Songs
+        val songsArrayList = ArrayList(songs)
 
-        // SONG ADAPTER SETZEN
-        // Wir setzen showTrackNumber auf true, damit die Nummern links stehen
-        rvSongs.adapter = SongsAdapter(allSongs, showTrackNumber = true) { song ->
-            val index = allSongs.indexOf(song)
+        rvSongs.adapter = SongsAdapter(songsArrayList, showTrackNumber = true) { song ->
+            val index = songsArrayList.indexOf(song)
             if (index != -1) {
-                mainActivity?.playPlaylist(allSongs, index)
+                (activity as? MainActivity)?.playPlaylist(songsArrayList, index)
             }
         }
+
     }
 
     companion object {

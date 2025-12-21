@@ -1,10 +1,8 @@
 package com.example.lmnt
 
 import android.content.ComponentName
-import android.content.ContentUris
 import android.net.Uri
 import android.os.Bundle
-import android.provider.MediaStore
 import android.view.View
 import android.widget.ImageButton
 import android.widget.ImageView
@@ -21,8 +19,6 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import androidx.viewpager2.widget.ViewPager2
 import coil.load
-import com.example.lmnt.model.Album
-import com.example.lmnt.model.Artist
 import com.example.lmnt.service.PlaybackService
 import com.example.lmnt.ui.AlbumsFragment
 import com.example.lmnt.ui.ArtistsFragment
@@ -30,6 +26,7 @@ import com.example.lmnt.ui.theme.*
 import com.example.lmnt.viewmodel.MusicViewModel
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.common.util.concurrent.ListenableFuture
+
 
 class MainActivity : AppCompatActivity() {
 
@@ -56,16 +53,9 @@ class MainActivity : AppCompatActivity() {
                 1 -> { // Songs Tab
                     popup.menuInflater.inflate(R.menu.menu_songs, popup.menu)
                     popup.setOnMenuItemClickListener { item ->
-                        val fragment = myAdapter.getFragment(1) as? SongsFragment
                         when (item.itemId) {
-                            R.id.sort_az -> {
-                                fragment?.sortSongs(true)
-                                true
-                            }
-                            R.id.sort_za -> {
-                                fragment?.sortSongs(false)
-                                true
-                            }
+                            R.id.sort_az -> { musicViewModel.sortSongs(true); true }
+                            R.id.sort_za -> { musicViewModel.sortSongs(false); true }
                             else -> false
                         }
                     }
@@ -128,16 +118,10 @@ class MainActivity : AppCompatActivity() {
 
         customSearchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?): Boolean = false
-            override fun onQueryTextChange(newText: String?): Boolean {
-                val queryText = newText ?: ""
-                val currentPos = viewPager.currentItem
-                val currentFragment = myAdapter.getFragment(currentPos)
 
-                when(currentPos) {
-                    1 -> (currentFragment as? SongsFragment)?.filter(queryText)
-                    2 -> (currentFragment as? AlbumsFragment)?.filter(queryText)
-                    3 -> (currentFragment as? ArtistsFragment)?.filter(queryText)
-                }
+            override fun onQueryTextChange(newText: String?): Boolean {
+                // Das ViewModel filtert jetzt zentral für alle Fragmente gleichzeitig!
+                musicViewModel.filterAll(newText ?: "")
                 return true
             }
         })
@@ -167,12 +151,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadInitialData() {
-        // Daten laden und ins ViewModel schieben
-        musicViewModel.setSongs(loadAllSongs())
-        musicViewModel.setAlbums(loadAlbumsFromStorage())
-        musicViewModel.setArtists(loadArtists())
+        musicViewModel.setSongs(MusicLoader.loadAllSongs(contentResolver))
+        musicViewModel.setAlbums(MusicLoader.loadAlbums(contentResolver))
+        musicViewModel.setArtists(MusicLoader.loadArtists(contentResolver))
     }
-
     private fun setupViewPager() {
         val fragments = listOf(
             HomeFragment(),
@@ -181,7 +163,6 @@ class MainActivity : AppCompatActivity() {
             ArtistsFragment(),
             PlaylistsFragment()
         )
-
         myAdapter = ViewPagerAdapter(this, fragments)
         viewPager.adapter = myAdapter
 
@@ -205,142 +186,6 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    // --- MEDIASTORE LOADERS ---
-
-    fun loadAllSongs(): List<Song> {
-        val songList = mutableListOf<Song>()
-        val projection = arrayOf(
-            MediaStore.Audio.Media._ID,
-            MediaStore.Audio.Media.TITLE,
-            MediaStore.Audio.Media.ARTIST,
-            MediaStore.Audio.Media.DATA,
-            MediaStore.Audio.Media.ALBUM_ID,
-            MediaStore.Audio.Media.TRACK
-        )
-        contentResolver.query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection, null, null, "${MediaStore.Audio.Media.TITLE} ASC")?.use { cursor ->
-            val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-            val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
-            val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
-            val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
-            val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
-            val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
-
-            while (cursor.moveToNext()) {
-                val albumId = cursor.getLong(albumIdCol)
-                val artworkUri = ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), albumId).toString()
-                songList.add(Song(
-                    id = cursor.getLong(idCol),
-                    title = cursor.getString(titleCol) ?: "Unbekannt",
-                    artist = cursor.getString(artistCol) ?: "Unbekannt",
-                    uri = cursor.getString(dataCol) ?: "",
-                    artworkUri = artworkUri,
-                    trackNumber = cursor.getInt(trackCol) % 1000, // Prüfe ob Song.kt hier Int will
-                    discNumber = 1 // Falls dein Model discNumber erwartet
-                ))
-            }
-        }
-        return songList
-    }
-
-    fun loadAlbumsFromStorage(): List<Album> {
-        val albumList = mutableListOf<Album>()
-        val projection = arrayOf(MediaStore.Audio.Albums._ID, MediaStore.Audio.Albums.ALBUM, MediaStore.Audio.Albums.ARTIST, MediaStore.Audio.Albums.NUMBER_OF_SONGS)
-        contentResolver.query(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, projection, null, null, "${MediaStore.Audio.Albums.ALBUM} ASC")?.use { cursor ->
-            val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums._ID)
-            val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.ALBUM)
-            val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.ARTIST)
-            val countCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.NUMBER_OF_SONGS)
-            while (cursor.moveToNext()) {
-                val id = cursor.getLong(idCol)
-                val artworkUri = ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), id).toString()
-                albumList.add(Album(id, cursor.getString(albumCol) ?: "Unbekannt", cursor.getString(artistCol) ?: "Unbekannt", artworkUri, cursor.getInt(countCol)))
-            }
-        }
-        return albumList
-    }
-
-    fun loadArtists(): List<Artist> {
-        val artistList = mutableListOf<Artist>()
-        val projection = arrayOf(MediaStore.Audio.Artists._ID, MediaStore.Audio.Artists.ARTIST, MediaStore.Audio.Artists.NUMBER_OF_ALBUMS, MediaStore.Audio.Artists.NUMBER_OF_TRACKS)
-        contentResolver.query(MediaStore.Audio.Artists.EXTERNAL_CONTENT_URI, projection, null, null, "${MediaStore.Audio.Artists.ARTIST} ASC")?.use { cursor ->
-            val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Artists._ID)
-            val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Artists.ARTIST)
-            val albumsCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Artists.NUMBER_OF_ALBUMS)
-            val tracksCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Artists.NUMBER_OF_TRACKS)
-            while (cursor.moveToNext()) {
-                artistList.add(Artist(cursor.getLong(idCol), cursor.getString(artistCol) ?: "Unbekannt", cursor.getInt(albumsCol), cursor.getInt(tracksCol)))
-            }
-        }
-        return artistList
-    }
-
-    fun loadSongsForAlbum(albumId: Long): List<Song> {
-        val songList = mutableListOf<Song>()
-        val projection = arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.DATA, MediaStore.Audio.Media.TRACK)
-        val selection = "${MediaStore.Audio.Media.ALBUM_ID} = ?"
-        contentResolver.query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection, selection, arrayOf(albumId.toString()), "${MediaStore.Audio.Media.TRACK} ASC")?.use { cursor ->
-            val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-            val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
-            val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
-            val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
-            val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
-            while (cursor.moveToNext()) {
-                val artworkUri = ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), albumId).toString()
-                songList.add(Song(
-                    id = cursor.getLong(idCol),
-                    title = cursor.getString(titleCol) ?: "Unbekannt",
-                    artist = cursor.getString(artistCol) ?: "Unbekannt",
-                    uri = cursor.getString(dataCol) ?: "",      // Der Musik-Pfad
-                    artworkUri = artworkUri,                    // Der Cover-Pfad
-                    trackNumber = cursor.getInt(trackCol) % 1000,
-                    discNumber = 1
-                ))
-            }
-        }
-        return songList
-    }
-
-    fun loadAlbenForArtist(artistName: String): List<Album> {
-        val albumList = mutableListOf<Album>()
-        val projection = arrayOf(MediaStore.Audio.Albums._ID, MediaStore.Audio.Albums.ALBUM, MediaStore.Audio.Albums.ARTIST, MediaStore.Audio.Albums.NUMBER_OF_SONGS)
-        contentResolver.query(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, projection, "${MediaStore.Audio.Albums.ARTIST} = ?", arrayOf(artistName), "${MediaStore.Audio.Albums.ALBUM} ASC")?.use { cursor ->
-            val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums._ID)
-            val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.ALBUM)
-            val countCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.NUMBER_OF_SONGS)
-            while (cursor.moveToNext()) {
-                val id = cursor.getLong(idCol)
-                val artworkUri = ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), id).toString()
-                albumList.add(Album(id, cursor.getString(albumCol) ?: "Unbekannt", artistName, artworkUri, cursor.getInt(countCol)))
-            }
-        }
-        return albumList
-    }
-
-    fun loadSongsForArtistName(artistName: String): List<Song> {
-        val songList = mutableListOf<Song>()
-        val projection = arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.DATA, MediaStore.Audio.Media.ALBUM_ID, MediaStore.Audio.Media.TRACK)
-        contentResolver.query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection, "${MediaStore.Audio.Media.ARTIST} = ?", arrayOf(artistName), "${MediaStore.Audio.Media.TITLE} ASC")?.use { cursor ->
-            val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-            val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
-            val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
-            val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
-            val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
-            val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
-            while (cursor.moveToNext()) {
-                val artworkUri = ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), cursor.getLong(albumIdCol)).toString()
-                songList.add(Song(
-                    id = cursor.getLong(idCol),
-                    title = cursor.getString(titleCol) ?: "Unbekannt",
-                    artist = cursor.getString(artistCol) ?: "Unbekannt",
-                    uri = cursor.getString(dataCol) ?: "",
-                    artworkUri = artworkUri,
-                    trackNumber = cursor.getInt(trackCol) % 1000, // Prüfe ob Song.kt hier Int will
-                    discNumber = 1 // Falls dein Model discNumber erwartet
-                ))
-            }
-        }
-        return songList
-    }
 
     // --- PLAYBACK ---
 

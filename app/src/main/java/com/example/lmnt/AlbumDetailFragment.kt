@@ -8,6 +8,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.example.lmnt.MainActivity
+import com.example.lmnt.MusicLoader
 import com.example.lmnt.R
 import com.example.lmnt.SongsAdapter
 import com.example.lmnt.Song
@@ -34,7 +35,7 @@ class AlbumDetailFragment : Fragment(R.layout.fragment_album_detail) {
 
         // 3. Daten über die MainActivity laden
         val mainActivity = (activity as? MainActivity)
-        val songs = mainActivity?.loadSongsForAlbum(albumId) ?: emptyList()
+        val songs = MusicLoader.loadSongsForAlbum(requireContext().contentResolver, albumId)
 
         // Sortierung nach Disc und dann Tracknummer
         val sortedSongs = songs.sortedWith(compareBy({ it.discNumber }, { it.trackNumber }))
