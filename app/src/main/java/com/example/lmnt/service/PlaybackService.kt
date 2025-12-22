@@ -1,11 +1,13 @@
 package com.example.lmnt.service
 
+import android.app.PendingIntent
 import android.content.Intent
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import com.example.lmnt.MainActivity
 import com.example.lmnt.database.AppDatabase
 import com.example.lmnt.database.PlaybackHistory
 import kotlinx.coroutines.*
@@ -91,7 +93,22 @@ class PlaybackService : MediaSessionService() {
         super.onCreate()
         player = ExoPlayer.Builder(this).build()
         player.addListener(playerListener)
-        mediaSession = MediaSession.Builder(this, player).build()
+
+        // Das Intent, das die MainActivity öffnet
+        val intent = Intent(this, MainActivity::class.java).apply {
+            putExtra("OPEN_PLAYER", true) // Markierung setzen
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        // MediaSession mit dem PendingIntent verknüpfen
+        mediaSession = MediaSession.Builder(this, player)
+            .setSessionActivity(pendingIntent) // DAS ermöglicht den Klick auf die Notification
+            .build()
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
@@ -111,8 +128,9 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        saveCurrentTracking() // Zeit sichern, wenn App aus dem Taskmanager gewischt wird
         val player = mediaSession?.player
+        // Nur stoppen, wenn NICHTS spielt.
+        // Wenn player?.isPlaying true ist, NICHT stopSelf() aufrufen!
         if (player == null || !player.playWhenReady || player.mediaItemCount == 0) {
             stopSelf()
         }

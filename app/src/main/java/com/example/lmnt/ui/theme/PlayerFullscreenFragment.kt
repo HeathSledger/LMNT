@@ -60,7 +60,10 @@ class PlayerFullscreenFragment : BottomSheetDialogFragment() {
         btnRepeat = view.findViewById(R.id.btnRepeat)
 
         fun updateUI() {
-            val metadata = controller?.currentMediaItem?.mediaMetadata
+
+            val currentController = controller ?: (activity as? MainActivity)?.mediaController
+            if (currentController == null) return // Abbrechen, wenn noch kein Controller da ist
+            val metadata = currentController.currentMediaItem?.mediaMetadata
             titleTv.text = metadata?.title ?: "Unbekannt"
             artistTv.text = metadata?.artist ?: "Unbekannt"
             albumArtIv.load(metadata?.artworkUri) {
@@ -135,6 +138,26 @@ class PlayerFullscreenFragment : BottomSheetDialogFragment() {
         return view
     }
 
+    override fun onStart() {
+        super.onStart()
+
+        val dialog = dialog as? BottomSheetDialog
+        val bottomSheet = dialog?.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
+
+        bottomSheet?.let {
+            val behavior = BottomSheetBehavior.from(it)
+
+            // 1. Zwinge das Layout auf die volle Bildschirmhöhe
+            it.layoutParams.height = ViewGroup.LayoutParams.MATCH_PARENT
+
+            // 2. Setze den Zustand sofort auf "Ganz ausgeklappt"
+            behavior.state = BottomSheetBehavior.STATE_EXPANDED
+
+            // 3. Optional: Verhindere, dass man ihn halb-ausgeklappt (Peek) stehen lassen kann
+            behavior.skipCollapsed = true
+        }
+    }
+
     // Hilfsfunktion um die Farben der Shuffle/Repeat Buttons zu aktualisieren
     private fun updateToggleButtons() {
         val activeColor = ColorStateList.valueOf(Color.GREEN) // Oder deine Wunschfarbe
@@ -169,17 +192,6 @@ class PlayerFullscreenFragment : BottomSheetDialogFragment() {
         return String.format("%d:%02d", minutes, seconds)
     }
 
-    override fun onStart() {
-        super.onStart()
-        val dialog = dialog as? BottomSheetDialog
-        val bottomSheet = dialog?.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
-        bottomSheet?.let {
-            val behavior = BottomSheetBehavior.from(it)
-            it.layoutParams.height = ViewGroup.LayoutParams.MATCH_PARENT
-            behavior.state = BottomSheetBehavior.STATE_EXPANDED
-            behavior.skipCollapsed = true
-        }
-    }
 
     override fun onDestroyView() {
         super.onDestroyView()

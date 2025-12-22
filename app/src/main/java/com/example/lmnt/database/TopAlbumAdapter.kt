@@ -18,14 +18,12 @@ class TopAlbumAdapter(
     class AlbumViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val tvRank: TextView = view.findViewById(R.id.tvRank)
         val ivCover: ImageView = view.findViewById(R.id.ivCover)
-
-        // ACHTUNG: Hier war eventuell tvArtistName für das Album zugewiesen
-        val tvAlbumTitle: TextView = view.findViewById(R.id.tvArtistName)
-        val tvDetailInfo: TextView = view.findViewById(R.id.tvPlayCount)
+        // WICHTIG: Prüfe in item_top_artist.xml ob die IDs tvArtistName und tvPlayCount heißen
+        val tvTitle: TextView = view.findViewById(R.id.tvArtistName)
+        val tvSubTitle: TextView = view.findViewById(R.id.tvPlayCount)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): AlbumViewHolder {
-        // Wir nutzen das existierende Item-Layout
         val view = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_top_artist, parent, false)
         return AlbumViewHolder(view)
@@ -36,22 +34,21 @@ class TopAlbumAdapter(
 
         holder.tvRank.text = (position + 1).toString()
 
-        // 1. TITEL SETZEN
-        // Da in deiner AlbumTimeStat das Feld 'album' heißt:
-        holder.tvAlbumTitle.text = stat.album
+        // Titel setzen (stat.album kommt aus deinem DAO)
+        holder.tvTitle.text = stat.album
 
-        // 2. UNTERZEILE SETZEN (Interpret & Zeit)
         val minutes = stat.totalTime / (1000 * 60)
-        holder.tvDetailInfo.text = "${stat.artist} • $minutes min"
+        holder.tvSubTitle.text = "${stat.artist} • $minutes min"
 
-        // 3. COVER FINDEN
-        // Wir suchen in der Library nach dem Albumnamen
-        val albumMetadata = allAlbums.find { it.title.equals(stat.album, ignoreCase = true) }
+        // Fehlerquelle Suche: Wir trimmen beide Strings (entfernen Leerzeichen)
+        val albumMetadata = allAlbums.find {
+            it.title.trim().equals(stat.album.trim(), ignoreCase = true)
+        }
 
         holder.ivCover.visibility = View.VISIBLE
 
         Glide.with(holder.itemView.context)
-            .load(albumMetadata?.artworkUri)
+            .load(albumMetadata?.artworkUri) // Nutzt die Uri aus deinem Album-Modell
             .placeholder(R.drawable.ic_default_album)
             .error(R.drawable.ic_default_album)
             .centerCrop()

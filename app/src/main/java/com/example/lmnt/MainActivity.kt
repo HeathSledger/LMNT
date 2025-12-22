@@ -1,6 +1,7 @@
 package com.example.lmnt
 
 import android.content.ComponentName
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
@@ -29,6 +30,7 @@ import com.example.lmnt.viewmodel.MusicViewModel
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.common.util.concurrent.ListenableFuture
 import com.example.lmnt.ui.MenuHubFragment
+import com.google.common.util.concurrent.MoreExecutors
 
 
 class MainActivity : AppCompatActivity() {
@@ -37,6 +39,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var bottomNavigation: BottomNavigationView
     private lateinit var myAdapter: ViewPagerAdapter
     private lateinit var musicViewModel: MusicViewModel
+    private var shouldOpenPlayerOnConnect = false
 
     private var controllerFuture: ListenableFuture<MediaController>? = null
     var mediaController: MediaController? = null
@@ -44,7 +47,6 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-
 
         val btnSettings = findViewById<ImageButton>(R.id.btnSettings) // Deine ID anpassen
         btnSettings.setOnClickListener {
@@ -185,6 +187,24 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (intent.getBooleanExtra("OPEN_PLAYER", false)) {
+            intent.removeExtra("OPEN_PLAYER")
+            if (mediaController != null) {
+                openFullscreen()
+            } else {
+                shouldOpenPlayerOnConnect = true // Merken für später!
+            }
+        }
+    }
+
+    // Wichtig, falls die App schon im Hintergrund offen war
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+    }
+
     private fun loadInitialData() {
         musicViewModel.setSongs(MusicLoader.loadAllSongs(contentResolver))
         musicViewModel.setAlbums(MusicLoader.loadAlbums(contentResolver))
@@ -232,6 +252,7 @@ class MainActivity : AppCompatActivity() {
                 .setMediaMetadata(MediaMetadata.Builder()
                     .setTitle(song.title)
                     .setArtist(song.artist)
+                    .setAlbumTitle(song.album)
                     .setArtworkUri(Uri.parse(song.artworkUri))
                     .build())
                 .build()
@@ -252,7 +273,15 @@ class MainActivity : AppCompatActivity() {
             try {
                 mediaController = controllerFuture?.get()
                 setupMiniPlayer()
-            } catch (e: Exception) { e.printStackTrace() }
+
+                // Hier prüfen, ob wir aus einer Notification kommen:
+                if (shouldOpenPlayerOnConnect) {
+                    openFullscreen()
+                    shouldOpenPlayerOnConnect = false
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }, ContextCompat.getMainExecutor(this))
     }
 
@@ -269,19 +298,30 @@ class MainActivity : AppCompatActivity() {
         val albumArtIv = findViewById<ImageView>(R.id.miniPlayerAlbumArt)
         val playPauseBtn = findViewById<ImageButton>(R.id.btnMiniPlayerPlay)
 
-        miniPlayerLayout.visibility = View.GONE
+        // Hilfsfunktion zur UI-Aktualisierung (vermeidet doppelten Code)
+        fun updateUI(controller: Player) {
+            val metadata = controller.mediaMetadata
+            if (metadata.title != null) {
+                miniPlayerLayout.visibility = View.VISIBLE
+                titleTv.text = metadata.title
+                artistTv.text = metadata.artist
+                albumArtIv.load(metadata.artworkUri) {
+                    placeholder(R.drawable.ic_music_note)
+                    error(R.drawable.ic_music_note)
+                }
+                playPauseBtn.setImageResource(if (controller.isPlaying) R.drawable.player_pause else R.drawable.player_play)
+            } else {
+                miniPlayerLayout.visibility = View.GONE
+            }
+        }
 
+        // 1. Sofortiger Check beim Verbinden
+        mediaController?.let { updateUI(it) }
+
+        // 2. Listener für Änderungen während die App offen ist
         mediaController?.addListener(object : Player.Listener {
             override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
-                if (mediaMetadata.title != null) {
-                    miniPlayerLayout.visibility = View.VISIBLE
-                    titleTv.text = mediaMetadata.title
-                    artistTv.text = mediaMetadata.artist
-                    albumArtIv.load(mediaMetadata.artworkUri) {
-                        placeholder(R.drawable.ic_music_note)
-                        error(R.drawable.ic_music_note)
-                    }
-                }
+                updateUI(mediaController!!)
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -290,7 +330,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
-                if (playbackState == Player.STATE_IDLE || playbackState == Player.STATE_ENDED) {
+                if (playbackState == Player.STATE_IDLE) {
                     miniPlayerLayout.visibility = View.GONE
                 }
             }
