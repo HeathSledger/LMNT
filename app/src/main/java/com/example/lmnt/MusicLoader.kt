@@ -2,12 +2,14 @@ package com.example.lmnt
 
 import android.content.ContentResolver
 import android.content.ContentUris
-import android.net.Uri
 import android.provider.MediaStore
+import androidx.core.net.toUri
 import com.example.lmnt.model.Album
 import com.example.lmnt.model.Artist
 
 object MusicLoader {
+
+    private val albumArtUri = "content://media/external/audio/albumart".toUri()
 
     fun loadAllSongs(contentResolver: ContentResolver): List<Song> {
         val songList = mutableListOf<Song>()
@@ -15,7 +17,7 @@ object MusicLoader {
             MediaStore.Audio.Media._ID,
             MediaStore.Audio.Media.TITLE,
             MediaStore.Audio.Media.ARTIST,
-            MediaStore.Audio.Media.ALBUM, // NEU
+            MediaStore.Audio.Media.ALBUM,
             MediaStore.Audio.Media.DATA,
             MediaStore.Audio.Media.ALBUM_ID,
             MediaStore.Audio.Media.TRACK,
@@ -31,7 +33,7 @@ object MusicLoader {
             val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
             val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
             val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
-            val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM) // NEU
+            val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
             val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
             val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
             val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
@@ -39,16 +41,13 @@ object MusicLoader {
 
             while (cursor.moveToNext()) {
                 val albumId = cursor.getLong(albumIdCol)
-                val artworkUri = ContentUris.withAppendedId(
-                    Uri.parse("content://media/external/audio/albumart"),
-                    albumId
-                ).toString()
+                val artworkUri = ContentUris.withAppendedId(albumArtUri, albumId).toString()
                 songList.add(
                     Song(
                         id = cursor.getLong(idCol),
                         title = cursor.getString(titleCol) ?: "Unbekannt",
                         artist = cursor.getString(artistCol) ?: "Unbekannt",
-                        album = cursor.getString(albumCol) ?: "Unbekannt", // NEU
+                        album = cursor.getString(albumCol) ?: "Unbekannt",
                         uri = cursor.getString(dataCol) ?: "",
                         artworkUri = artworkUri,
                         trackNumber = cursor.getInt(trackCol) % 1000,
@@ -61,7 +60,6 @@ object MusicLoader {
         return songList
     }
 
-    // Die loadAlbums und loadArtists bleiben gleich, da sie bereits auf die Album/Artist Tabellen zugreifen
     fun loadArtists(contentResolver: ContentResolver): List<Artist> {
         val artistList = mutableListOf<Artist>()
         val projection = arrayOf(
@@ -84,8 +82,6 @@ object MusicLoader {
             val tracksCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Artists.NUMBER_OF_TRACKS)
 
             while (cursor.moveToNext()) {
-                // Hier rufen wir den Konstruktor ohne Parameternamen auf.
-                // Die Reihenfolge muss deiner Artist.kt entsprechen: (id, name, albums, tracks)
                 artistList.add(
                     Artist(
                         cursor.getLong(idCol),
@@ -98,7 +94,6 @@ object MusicLoader {
         }
         return artistList
     }
-
 
     fun loadAlbums(contentResolver: ContentResolver): List<Album> {
         val albumList = mutableListOf<Album>()
@@ -121,10 +116,7 @@ object MusicLoader {
             val countCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.NUMBER_OF_SONGS)
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idCol)
-                val artworkUri = ContentUris.withAppendedId(
-                    Uri.parse("content://media/external/audio/albumart"),
-                    id
-                ).toString()
+                val artworkUri = ContentUris.withAppendedId(albumArtUri, id).toString()
                 albumList.add(
                     Album(
                         id,
@@ -145,7 +137,7 @@ object MusicLoader {
             MediaStore.Audio.Media._ID,
             MediaStore.Audio.Media.TITLE,
             MediaStore.Audio.Media.ARTIST,
-            MediaStore.Audio.Media.ALBUM, // NEU
+            MediaStore.Audio.Media.ALBUM,
             MediaStore.Audio.Media.DATA,
             MediaStore.Audio.Media.TRACK,
             MediaStore.Audio.Media.DURATION
@@ -161,21 +153,18 @@ object MusicLoader {
             val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
             val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
             val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
-            val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM) // NEU
+            val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
             val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
             val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
             val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
             while (cursor.moveToNext()) {
-                val artworkUri = ContentUris.withAppendedId(
-                    Uri.parse("content://media/external/audio/albumart"),
-                    albumId
-                ).toString()
+                val artworkUri = ContentUris.withAppendedId(albumArtUri, albumId).toString()
                 songList.add(
                     Song(
                         id = cursor.getLong(idCol),
                         title = cursor.getString(titleCol) ?: "Unbekannt",
                         artist = cursor.getString(artistCol) ?: "Unbekannt",
-                        album = cursor.getString(albumCol) ?: "Unbekannt", // NEU
+                        album = cursor.getString(albumCol) ?: "Unbekannt",
                         uri = cursor.getString(dataCol) ?: "",
                         artworkUri = artworkUri,
                         trackNumber = cursor.getInt(trackCol) % 1000,
@@ -194,7 +183,7 @@ object MusicLoader {
             MediaStore.Audio.Media._ID,
             MediaStore.Audio.Media.TITLE,
             MediaStore.Audio.Media.ARTIST,
-            MediaStore.Audio.Media.ALBUM, // NEU
+            MediaStore.Audio.Media.ALBUM,
             MediaStore.Audio.Media.DATA,
             MediaStore.Audio.Media.ALBUM_ID,
             MediaStore.Audio.Media.TRACK,
@@ -209,23 +198,20 @@ object MusicLoader {
         )?.use { cursor ->
             val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
             val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
-            val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
             val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
-            val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM) // NEU
+            val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+            val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
             val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
             val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
             val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
             while (cursor.moveToNext()) {
-                val artworkUri = ContentUris.withAppendedId(
-                    Uri.parse("content://media/external/audio/albumart"),
-                    cursor.getLong(albumIdCol)
-                ).toString()
+                val artworkUri = ContentUris.withAppendedId(albumArtUri, cursor.getLong(albumIdCol)).toString()
                 songList.add(
                     Song(
                         id = cursor.getLong(idCol),
                         title = cursor.getString(titleCol) ?: "Unbekannt",
                         artist = cursor.getString(artistCol) ?: "Unbekannt",
-                        album = cursor.getString(albumCol) ?: "Unbekannt", // NEU
+                        album = cursor.getString(albumCol) ?: "Unbekannt",
                         uri = cursor.getString(dataCol) ?: "",
                         artworkUri = artworkUri,
                         trackNumber = cursor.getInt(trackCol) % 1000,
@@ -246,7 +232,6 @@ object MusicLoader {
             MediaStore.Audio.Albums.ARTIST,
             MediaStore.Audio.Albums.NUMBER_OF_SONGS
         )
-
         contentResolver.query(
             MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI,
             projection,
@@ -261,11 +246,7 @@ object MusicLoader {
 
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idCol)
-                val artworkUri = ContentUris.withAppendedId(
-                    Uri.parse("content://media/external/audio/albumart"),
-                    id
-                ).toString()
-
+                val artworkUri = ContentUris.withAppendedId(albumArtUri, id).toString()
                 albumList.add(
                     Album(
                         id = id,
@@ -280,6 +261,3 @@ object MusicLoader {
         return albumList
     }
 }
-
-    // loadArtists und loadAlbenForArtist bleiben unverändert
-

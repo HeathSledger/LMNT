@@ -33,27 +33,26 @@ class SongsFragment : Fragment() {
         val recyclerView = view.findViewById<RecyclerView>(R.id.songsRecyclerView)
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
 
-        adapter = SongsAdapter(displayedSongs) { song ->
-            playSong(song)
+        // ÄNDERUNG: Der Adapter liefert jetzt den Index (Int) statt des Songs
+        adapter = SongsAdapter(displayedSongs) { index ->
+            playSong(index)
         }
         recyclerView.adapter = adapter
 
-        // ViewModel von der Activity holen (Wichtig: requireActivity())
         musicViewModel = ViewModelProvider(requireActivity()).get(MusicViewModel::class.java)
 
-        // Hier passiert die Magie: Das ViewModel sagt uns, was wir anzeigen sollen.
-        // Egal ob gefiltert, sortiert oder neu geladen.
         musicViewModel.songs.observe(viewLifecycleOwner) { songList ->
             displayedSongs.clear()
             displayedSongs.addAll(songList)
             adapter.notifyDataSetChanged()
-            adapter.setupSections() // Wichtig für deine A-Z Sidebar
+            adapter.setupSections()
         }
     }
-    private fun playSong(selectedSong: Song) {
-        val startIndex = displayedSongs.indexOf(selectedSong)
-        if (startIndex != -1) {
-            // Kopie der aktuellen Liste an den Player übergeben
+
+    // ÄNDERUNG: Diese Funktion nimmt jetzt direkt den Index entgegen
+    private fun playSong(startIndex: Int) {
+        if (startIndex in displayedSongs.indices) {
+            // Die gesamte Liste und den Startpunkt an die MainActivity übergeben
             (activity as? MainActivity)?.playPlaylist(ArrayList(displayedSongs), startIndex)
         }
     }

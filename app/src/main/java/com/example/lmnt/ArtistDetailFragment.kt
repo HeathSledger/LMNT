@@ -45,16 +45,13 @@ class ArtistDetailFragment : Fragment(R.layout.fragment_artist_detail) {
         // 2. Alle Songs des Künstlers laden (Vertikal)
         val songs = MusicLoader.loadSongsForArtistName(requireContext().contentResolver, artistName)
         rvSongs.layoutManager = LinearLayoutManager(context)
-        // Erstelle eine ArrayList aus den geladenen Songs
-        val songsArrayList = ArrayList(songs)
 
-        rvSongs.adapter = SongsAdapter(songsArrayList, showTrackNumber = true) { song ->
-            val index = songsArrayList.indexOf(song)
-            if (index != -1) {
-                (activity as? MainActivity)?.playPlaylist(songsArrayList, index)
-            }
+        // Wir können direkt die Liste nutzen
+        rvSongs.adapter = SongsAdapter(songs, showTrackNumber = true) { index ->
+            // Der Adapter liefert uns jetzt direkt die Position (Int)
+            // Wir rufen die playPlaylist der MainActivity mit der Liste und dem Index auf
+            mainActivity?.playPlaylist(songs, index)
         }
-
     }
 
     companion object {

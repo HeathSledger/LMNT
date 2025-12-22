@@ -16,6 +16,8 @@ import com.example.lmnt.SongsAdapter
 import com.example.lmnt.Song
 import com.example.lmnt.model.Album
 import com.example.lmnt.database.*
+import com.example.lmnt.database.TopArtistAdapter
+import com.example.lmnt.database.TopAlbumAdapter
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
 import kotlinx.coroutines.Dispatchers
@@ -26,13 +28,12 @@ import java.util.Calendar
 class StatisticsFragment : Fragment(R.layout.fragment_statistics) {
 
     private lateinit var allSongs: List<Song>
-    private lateinit var allAlbums: List<Album> // NEU: Für die Cover-Logik
+    private lateinit var allAlbums: List<Album>
     private lateinit var tvYearlyTimeValue: TextView
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // UI Elemente
         val rvRecentlyAdded = view.findViewById<RecyclerView>(R.id.rvRecentlyAdded)
         val rvTopSongs = view.findViewById<RecyclerView>(R.id.rvTopSongs)
         val rvTopArtists = view.findViewById<RecyclerView>(R.id.rvTopArtists)
@@ -44,25 +45,23 @@ class StatisticsFragment : Fragment(R.layout.fragment_statistics) {
         viewLifecycleOwner.lifecycleScope.launch {
             val ctx = context ?: return@launch
 
-            // 1. Library laden (Songs & Alben)
             withContext(Dispatchers.IO) {
                 allSongs = MusicLoader.loadAllSongs(ctx.contentResolver)
-                allAlbums = MusicLoader.loadAlbums(ctx.contentResolver) // Nutzt deine existierende Logik
+                allAlbums = MusicLoader.loadAlbums(ctx.contentResolver)
             }
 
-            // 2. Library Insights
             tvTotalSongs.text = "Total Number of Songs: ${allSongs.size}"
             val totalMs = allSongs.sumOf { it.duration.toLong() }
             tvTotalDuration.text = "Total Library Time: ${totalMs / (1000 * 60)} Min"
 
-            // 3. Recently Added
+            // 3. Recently Added - KORRIGIERT
             val recentSongs = allSongs.takeLast(5).reversed()
             rvRecentlyAdded.layoutManager = LinearLayoutManager(ctx)
-            rvRecentlyAdded.adapter = SongsAdapter(ArrayList(recentSongs)) { song ->
-                (activity as? MainActivity)?.playPlaylist(recentSongs, recentSongs.indexOf(song))
+            rvRecentlyAdded.adapter = SongsAdapter(recentSongs) { index ->
+                // Wir nutzen direkt den Index vom Adapter
+                (activity as? MainActivity)?.playPlaylist(recentSongs, index)
             }
 
-            // 4. Dynamische Filter-Chips & Time-Stats laden
             setupYearFilters(view, rvTopSongs, rvTopArtists, rvTopAlbums)
         }
     }
@@ -77,7 +76,6 @@ class StatisticsFragment : Fragment(R.layout.fragment_statistics) {
 
             chipGroup.removeAllViews()
 
-            // "All Time" Chip
             addYearChip(chipGroup, "All Time", null, rvSongs, rvArtists, rvAlbums)
 
             if (yearsFromDb.isEmpty()) {
@@ -115,25 +113,24 @@ class StatisticsFragment : Fragment(R.layout.fragment_statistics) {
         viewLifecycleOwner.lifecycleScope.launch {
             val db = AppDatabase.getDatabase(requireContext())
 
-            // 1. Gehörte Zeit
             val totalYearlyMs = if (year != null) db.historyDao().getTotalPlaytimeMs(year) else db.historyDao().getAllTimeTotalPlaytimeMs()
             val totalMinutes = (totalYearlyMs ?: 0L) / (1000 * 60)
             tvYearlyTimeValue.text = "$totalMinutes Minutes"
 
-            // 2. Top Songs (mit Covern über den SongsAdapter)
+            // 2. Top Songs - KORRIGIERT
             val topEntries = if (year != null) db.historyDao().getTopSongsOfYear(year) else db.historyDao().getAllTimeTopSongs()
             val topSongsList = topEntries.mapNotNull { entry -> allSongs.find { it.id == entry.songId } }
+
             rvSongs.layoutManager = LinearLayoutManager(context)
-            rvSongs.adapter = SongsAdapter(ArrayList(topSongsList)) { song ->
-                (activity as? MainActivity)?.playPlaylist(topSongsList, topSongsList.indexOf(song))
+            rvSongs.adapter = SongsAdapter(topSongsList) { index ->
+                // Wir nutzen direkt den Index vom Adapter
+                (activity as? MainActivity)?.playPlaylist(topSongsList, index)
             }
 
-            // 3. Top Artists (Nutzt allAlbums für Vorschaubilder)
             val topArtistsData = if (year != null) db.historyDao().getTop5Artists(year) else db.historyDao().getAllTimeTopArtists()
             rvArtists.layoutManager = LinearLayoutManager(context)
             rvArtists.adapter = TopArtistAdapter(topArtistsData, allAlbums)
 
-            // 4. Top Albums (Nutzt allAlbums für Cover)
             val topAlbumsData = if (year != null) db.historyDao().getTop5Albums(year) else db.historyDao().getAllTimeTopAlbums()
             rvAlbums.layoutManager = LinearLayoutManager(context)
             rvAlbums.adapter = TopAlbumAdapter(topAlbumsData, allAlbums)

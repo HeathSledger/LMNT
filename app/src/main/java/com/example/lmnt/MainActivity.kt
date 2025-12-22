@@ -14,6 +14,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.lifecycle.ViewModelProvider
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -31,6 +32,7 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.common.util.concurrent.ListenableFuture
 import com.example.lmnt.ui.MenuHubFragment
 import com.google.common.util.concurrent.MoreExecutors
+import java.io.File
 
 
 class MainActivity : AppCompatActivity() {
@@ -245,10 +247,12 @@ class MainActivity : AppCompatActivity() {
     // --- PLAYBACK ---
 
     fun playPlaylist(songs: List<Song>, startIndex: Int) {
+        if (mediaController == null) return // Sicherheit, falls Controller noch nicht bereit
+
         val mediaItems = songs.map { song ->
             MediaItem.Builder()
                 .setMediaId(song.id.toString())
-                .setUri(Uri.parse(song.uri))
+                .setUri(Uri.parse(song.uri)) // Direkt parsen, nicht über File()
                 .setMediaMetadata(MediaMetadata.Builder()
                     .setTitle(song.title)
                     .setArtist(song.artist)
@@ -257,6 +261,7 @@ class MainActivity : AppCompatActivity() {
                     .build())
                 .build()
         }
+
         mediaController?.let {
             it.setMediaItems(mediaItems, startIndex, 0L)
             it.prepare()

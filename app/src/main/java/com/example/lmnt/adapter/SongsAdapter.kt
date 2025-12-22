@@ -13,7 +13,7 @@ import java.util.*
 class SongsAdapter(
     private val songs: List<Song>,
     private val showTrackNumber: Boolean = false,
-    private val onClick: (Song) -> Unit
+    private val onClick: (Int) -> Unit
 ) : RecyclerView.Adapter<SongsAdapter.SongViewHolder>(), SectionIndexer {
 
     // --- SectionIndexer Logik ---
@@ -91,8 +91,9 @@ class SongsAdapter(
             holder.tvTrackNumber.visibility = View.GONE
         }
 
-        holder.itemView.setOnClickListener { onClick(song) }
+        holder.itemView.setOnClickListener {
+            onClick(position)
+        }
     }
-
-    override fun getItemCount(): Int = songs.size
-}
+        override fun getItemCount(): Int = songs.size
+    }

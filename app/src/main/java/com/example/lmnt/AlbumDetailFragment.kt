@@ -43,12 +43,10 @@ class AlbumDetailFragment : Fragment(R.layout.fragment_album_detail) {
         // 4. RecyclerView Setup
         recyclerView.layoutManager = LinearLayoutManager(context)
 
-        // Adapter mit Klick-Logik
-        recyclerView.adapter = SongsAdapter(sortedSongs, showTrackNumber = true) { clickedSong ->
-            val index = sortedSongs.indexOf(clickedSong)
-            if (index != -1) {
-                mainActivity?.playPlaylist(sortedSongs, index)
-            }
+        // Der Adapter liefert uns jetzt direkt den 'index' (Position)
+        recyclerView.adapter = SongsAdapter(sortedSongs, showTrackNumber = true) { index ->
+            // Da wir den Index schon haben, können wir ihn direkt nutzen
+            mainActivity?.playPlaylist(sortedSongs, index)
         }
     }
 
