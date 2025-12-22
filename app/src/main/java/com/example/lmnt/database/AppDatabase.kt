@@ -5,7 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [PlaybackHistory::class], version = 2, exportSchema = false)
+@Database(entities = [PlaybackHistory::class], version = 3, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun historyDao(): HistoryDao
 
@@ -19,7 +19,11 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "lmnt_database"
-                ).build()
+                )
+                    // Ermöglicht Room, die alte Datenbank zu löschen und neu zu erstellen,
+                    // wenn sich das Schema (z.B. durch das neue 'album' Feld) geändert hat.
+                    .fallbackToDestructiveMigration()
+                    .build()
                 INSTANCE = instance
                 instance
             }

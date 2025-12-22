@@ -46,17 +46,19 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
 
+        val btnSettings = findViewById<ImageButton>(R.id.btnSettings) // Deine ID anpassen
+        btnSettings.setOnClickListener {
+            val menuHub = MenuHubFragment()
+            menuHub.show(supportFragmentManager, "MenuHub")
+        }
+
         // In der onCreate deiner MainActivity
         val btnMore = findViewById<ImageButton>(R.id.btnMore)
 
         btnMore.setOnClickListener { view ->
             val popup = androidx.appcompat.widget.PopupMenu(this, view)
 
-            val btnSettings = findViewById<ImageButton>(R.id.btnSettings) // Deine ID anpassen
-            btnSettings.setOnClickListener {
-                val menuHub = MenuHubFragment()
-                menuHub.show(supportFragmentManager, "MenuHub")
-            }
+
 
             when (viewPager.currentItem) {
                 1 -> { // Songs Tab
@@ -109,7 +111,7 @@ class MainActivity : AppCompatActivity() {
 
         // 3. ViewPager & Daten Setup
         setupViewPager()
-        loadInitialData()
+        checkPermissionsAndLoadData()
 
         // 4. Such-Logik
         btnSearch.setOnClickListener {

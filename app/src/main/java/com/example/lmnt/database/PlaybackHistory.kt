@@ -9,10 +9,10 @@ data class PlaybackHistory(
     val songId: Long,
     val songTitle: String,
     val artist: String,
-    val duration: Long, // Diese Zeile hinzufügen!
+    val album: String,   // NEU: Für die Top-Alben Statistik
+    val duration: Long,  // Hier speichern wir jetzt die TATSÄCHLICH gehörte Zeit (ms)
     val timestamp: Long,
     val day: Int,
     val month: Int,
     val year: Int
-
 )
