@@ -95,7 +95,7 @@ object MusicLoader {
 
     fun loadSongsForAlbum(contentResolver: ContentResolver, albumId: Long): List<Song> {
         val songList = mutableListOf<Song>()
-        val projection = arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.DATA, MediaStore.Audio.Media.TRACK)
+        val projection = arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.DATA, MediaStore.Audio.Media.TRACK,MediaStore.Audio.Media.DURATION)
         val selection = "${MediaStore.Audio.Media.ALBUM_ID} = ?"
         contentResolver.query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection, selection, arrayOf(albumId.toString()), "${MediaStore.Audio.Media.TRACK} ASC")?.use { cursor ->
             val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
@@ -139,7 +139,7 @@ object MusicLoader {
 
     fun loadSongsForArtistName(contentResolver: ContentResolver, artistName: String): List<Song> {
         val songList = mutableListOf<Song>()
-        val projection = arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.DATA, MediaStore.Audio.Media.ALBUM_ID, MediaStore.Audio.Media.TRACK)
+        val projection = arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.DATA, MediaStore.Audio.Media.ALBUM_ID, MediaStore.Audio.Media.TRACK, MediaStore.Audio.Media.DURATION)
         contentResolver.query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection, "${MediaStore.Audio.Media.ARTIST} = ?", arrayOf(artistName), "${MediaStore.Audio.Media.TITLE} ASC")?.use { cursor ->
             val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
             val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
