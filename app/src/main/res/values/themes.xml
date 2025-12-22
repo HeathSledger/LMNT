@@ -14,4 +14,11 @@
         <item name="android:background">@android:color/transparent</item>
     </style>
 
+    <style name="Base.Theme.LMNT" parent="Theme.Material3.DayNight.NoActionBar">
+    </style>
+
+    <style name="RoundedSquare">
+        <item name="cornerSize">12dp</item>
+    </style>
+
 </resources>

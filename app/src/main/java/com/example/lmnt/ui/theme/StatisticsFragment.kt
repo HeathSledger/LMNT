@@ -14,6 +14,7 @@ import com.example.lmnt.MusicLoader
 import com.example.lmnt.R
 import com.example.lmnt.SongsAdapter
 import com.example.lmnt.Song
+import com.example.lmnt.model.Album
 import com.example.lmnt.database.*
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
@@ -25,6 +26,7 @@ import java.util.Calendar
 class StatisticsFragment : Fragment(R.layout.fragment_statistics) {
 
     private lateinit var allSongs: List<Song>
+    private lateinit var allAlbums: List<Album> // NEU: Für die Cover-Logik
     private lateinit var tvYearlyTimeValue: TextView
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -42,12 +44,13 @@ class StatisticsFragment : Fragment(R.layout.fragment_statistics) {
         viewLifecycleOwner.lifecycleScope.launch {
             val ctx = context ?: return@launch
 
-            // 1. Library laden
-            allSongs = withContext(Dispatchers.IO) {
-                MusicLoader.loadAllSongs(ctx.contentResolver)
+            // 1. Library laden (Songs & Alben)
+            withContext(Dispatchers.IO) {
+                allSongs = MusicLoader.loadAllSongs(ctx.contentResolver)
+                allAlbums = MusicLoader.loadAlbums(ctx.contentResolver) // Nutzt deine existierende Logik
             }
 
-            // 2. Library Insights (Gesamt-Statistik der Dateien)
+            // 2. Library Insights
             tvTotalSongs.text = "Total Number of Songs: ${allSongs.size}"
             val totalMs = allSongs.sumOf { it.duration.toLong() }
             tvTotalDuration.text = "Total Library Time: ${totalMs / (1000 * 60)} Min"
@@ -77,7 +80,6 @@ class StatisticsFragment : Fragment(R.layout.fragment_statistics) {
             // "All Time" Chip
             addYearChip(chipGroup, "All Time", null, rvSongs, rvArtists, rvAlbums)
 
-            // Jahre aus DB oder aktuelles Jahr
             if (yearsFromDb.isEmpty()) {
                 addYearChip(chipGroup, currentYear.toString(), currentYear, rvSongs, rvArtists, rvAlbums, true)
             } else {
@@ -94,7 +96,6 @@ class StatisticsFragment : Fragment(R.layout.fragment_statistics) {
             isCheckable = true
             isChecked = isSelected
             setTextColor(Color.WHITE)
-            setChipBackgroundColorResource(if (isSelected) R.color.purple_500 else R.color.chip_background_inactive)
         }
 
         chip.setOnCheckedChangeListener { _, checked ->
@@ -114,12 +115,12 @@ class StatisticsFragment : Fragment(R.layout.fragment_statistics) {
         viewLifecycleOwner.lifecycleScope.launch {
             val db = AppDatabase.getDatabase(requireContext())
 
-            // 1. Gehörte Zeit anzeigen
+            // 1. Gehörte Zeit
             val totalYearlyMs = if (year != null) db.historyDao().getTotalPlaytimeMs(year) else db.historyDao().getAllTimeTotalPlaytimeMs()
             val totalMinutes = (totalYearlyMs ?: 0L) / (1000 * 60)
             tvYearlyTimeValue.text = "$totalMinutes Minutes"
 
-            // 2. Top Songs (nach Zeit)
+            // 2. Top Songs (mit Covern über den SongsAdapter)
             val topEntries = if (year != null) db.historyDao().getTopSongsOfYear(year) else db.historyDao().getAllTimeTopSongs()
             val topSongsList = topEntries.mapNotNull { entry -> allSongs.find { it.id == entry.songId } }
             rvSongs.layoutManager = LinearLayoutManager(context)
@@ -127,16 +128,15 @@ class StatisticsFragment : Fragment(R.layout.fragment_statistics) {
                 (activity as? MainActivity)?.playPlaylist(topSongsList, topSongsList.indexOf(song))
             }
 
-            // 3. Top Artists (nach Zeit)
+            // 3. Top Artists (Nutzt allAlbums für Vorschaubilder)
             val topArtistsData = if (year != null) db.historyDao().getTop5Artists(year) else db.historyDao().getAllTimeTopArtists()
             rvArtists.layoutManager = LinearLayoutManager(context)
-            rvArtists.adapter = TopArtistAdapter(topArtistsData)
+            rvArtists.adapter = TopArtistAdapter(topArtistsData, allAlbums)
 
-            // 4. Top Albums (NEU)
-            // 4. Top Albums befüllen
+            // 4. Top Albums (Nutzt allAlbums für Cover)
             val topAlbumsData = if (year != null) db.historyDao().getTop5Albums(year) else db.historyDao().getAllTimeTopAlbums()
             rvAlbums.layoutManager = LinearLayoutManager(context)
-            rvAlbums.adapter = TopAlbumAdapter(topAlbumsData) // Jetzt ist die Klasse bekannt!
+            rvAlbums.adapter = TopAlbumAdapter(topAlbumsData, allAlbums)
         }
     }
 

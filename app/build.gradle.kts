@@ -4,11 +4,10 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     kotlin("kapt")
 }
+
 android {
     namespace = "com.example.lmnt"
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk = 36 // Hinweis: 'release(36)' ist unüblich, meist nutzt man Zahlenwerte
 
     defaultConfig {
         applicationId = "com.example.lmnt"
@@ -42,6 +41,7 @@ android {
 }
 
 dependencies {
+    // AndroidX & Compose (aus Version Catalog / libs.versions.toml)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -50,6 +50,34 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+
+    // UI & Material Design
+    implementation("com.google.android.material:material:1.11.0")
+    implementation("androidx.recyclerview:recyclerview:1.3.1")
+    implementation("androidx.viewpager2:viewpager2:1.1.0")
+    implementation("com.simplecityapps:recyclerview-fastscroll:2.0.1")
+
+    // Media3 (ExoPlayer & UI)
+    val media3Version = "1.2.0"
+    implementation("androidx.media3:media3-exoplayer:$media3Version")
+    implementation("androidx.media3:media3-session:$media3Version")
+    implementation("androidx.media3:media3-ui:$media3Version")
+
+    // Image Loading & Palette
+    implementation("io.coil-kt:coil:2.6.0")
+    implementation("androidx.palette:palette-ktx:1.0.0")
+
+    // GLIDE (Korrekt konfiguriert)
+    implementation("com.github.bumptech.glide:glide:4.16.0")
+    kapt("com.github.bumptech.glide:compiler:4.16.0")
+
+    // ROOM Database
+    val room_version = "2.6.1"
+    implementation("androidx.room:room-runtime:$room_version")
+    implementation("androidx.room:room-ktx:$room_version")
+    kapt("androidx.room:room-compiler:$room_version")
+
+    // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -57,20 +85,4 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
-    implementation("com.google.android.material:material:1.11.0")
-    implementation("androidx.recyclerview:recyclerview:1.3.1")
-    implementation("androidx.viewpager2:viewpager2:1.1.0")
-    val media3Version = "1.2.0" // Oder aktuellere Version
-    implementation("androidx.media3:media3-exoplayer:$media3Version")
-    implementation("androidx.media3:media3-session:$media3Version")
-    implementation("androidx.media3:media3-ui:$media3Version")
-    implementation("io.coil-kt:coil:2.6.0")
-    implementation("androidx.palette:palette-ktx:1.0.0")
-    implementation("com.github.bumptech.glide:glide:4.16.0")
-    implementation("com.simplecityapps:recyclerview-fastscroll:2.0.1")
-    implementation("com.simplecityapps:recyclerview-fastscroll:2.0.1")
-    val room_version = "2.6.1"
-    implementation("androidx.room:room-runtime:$room_version")
-    implementation("androidx.room:room-ktx:$room_version")
-    kapt("androidx.room:room-compiler:$room_version")
 }
