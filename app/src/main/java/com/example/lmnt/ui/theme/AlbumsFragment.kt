@@ -23,20 +23,25 @@ class AlbumsFragment : Fragment(R.layout.fragment_albums) {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        recyclerView = view.findViewById(R.id.rvAlbums)
-        recyclerView.layoutManager = GridLayoutManager(context, 2)
+        // 1. Gespeicherten Wert laden
+        val prefs = requireContext().getSharedPreferences("LMNT_Settings", android.content.Context.MODE_PRIVATE)
+        val savedColumns = prefs.getInt("albums_grid", 2)
 
+        // 2. Die globale Variable 'recyclerView' benutzen (kein 'val' davor!)
+        recyclerView = view.findViewById(R.id.rvAlbums)
+
+        // 3. LayoutManager mit dem gespeicherten Wert setzen
+        recyclerView.layoutManager = GridLayoutManager(context, savedColumns)
+
+        // 4. Adapter Setup
         albumAdapter = AlbumAdapter(displayedAlbums) { album ->
             openAlbumDetails(album)
         }
         recyclerView.adapter = albumAdapter
 
+        // 5. ViewModel
         musicViewModel = ViewModelProvider(requireActivity()).get(MusicViewModel::class.java)
-
-        // Das ist jetzt das Herzstück:
         musicViewModel.albums.observe(viewLifecycleOwner) { albumList ->
-            // Jedes Mal, wenn im ViewModel gesucht oder geladen wird,
-            // kommen hier die passenden Daten an.
             updateDisplayedAlbums(albumList)
         }
     }

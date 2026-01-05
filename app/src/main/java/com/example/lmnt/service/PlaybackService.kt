@@ -2,6 +2,8 @@ package com.example.lmnt.service
 
 import android.app.PendingIntent
 import android.content.Intent
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
@@ -20,17 +22,35 @@ class PlaybackService : MediaSessionService() {
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
-    // Tracking Variablen
     private var startTime: Long = 0
     private var currentMediaItem: MediaItem? = null
+    private var fadeJob: Job? = null
+
+    private fun fadeVolume(targetVolume: Float, durationMs: Long) {
+        fadeJob?.cancel()
+        fadeJob = serviceScope.launch {
+            val startVolume = player.volume
+            val steps = 20
+            val interval = durationMs / steps
+            val volumeStep = (targetVolume - startVolume) / steps
+
+            for (i in 1..steps) {
+                delay(interval)
+                player.volume = startVolume + (i * volumeStep)
+            }
+            player.volume = targetVolume
+        }
+    }
 
     private val playerListener = object : Player.Listener {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-            // 1. Speichere die Zeit des GERADE BEENDETEN Songs
             saveCurrentTracking()
-
-            // 2. Starte das Tracking für den NEUEN Song
             currentMediaItem = mediaItem
+
+            // Sanftes Einblenden bei jedem neuen Song
+            player.volume = 0f
+            fadeVolume(1f, 800L)
+
             if (player.isPlaying) {
                 startTime = System.currentTimeMillis()
             }
@@ -38,11 +58,9 @@ class PlaybackService : MediaSessionService() {
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             if (isPlaying) {
-                // Musik wurde gestartet oder nach Pause fortgesetzt
                 startTime = System.currentTimeMillis()
                 currentMediaItem = player.currentMediaItem
             } else {
-                // Musik wurde pausiert oder gestoppt
                 saveCurrentTracking()
             }
         }
@@ -54,69 +72,39 @@ class PlaybackService : MediaSessionService() {
         }
     }
 
-    private fun saveCurrentTracking() {
-        val item = currentMediaItem ?: return
-        val start = startTime
-
-        // Wenn startTime 0 ist, lief kein Tracking
-        if (start == 0L) return
-
-        val listenedMs = System.currentTimeMillis() - start
-
-        // Wir speichern erst ab 2 Sekunden, um "Fehlspeicherungen" beim schnellen Skippen zu vermeiden
-        if (listenedMs > 2000L) {
-            val calendar = Calendar.getInstance()
-            val db = AppDatabase.getDatabase(this@PlaybackService)
-
-            val historyEntry = PlaybackHistory(
-                songId = item.mediaId.toLongOrNull() ?: 0L,
-                songTitle = item.mediaMetadata.title?.toString() ?: "Unknown",
-                artist = item.mediaMetadata.artist?.toString() ?: "Unknown",
-                album = item.mediaMetadata.albumTitle?.toString() ?: "Unknown", // Wichtig für Top-Alben!
-                duration = listenedMs, // Hier speichern wir die TATSÄCHLICHE Zeit
-                timestamp = System.currentTimeMillis(),
-                year = calendar.get(Calendar.YEAR),
-                month = calendar.get(Calendar.MONTH) + 1,
-                day = calendar.get(Calendar.DAY_OF_MONTH)
-            )
-
-            serviceScope.launch(Dispatchers.IO) {
-                db.historyDao().insert(historyEntry)
-            }
-        }
-
-        // Timer zurücksetzen, damit nicht doppelt gerechnet wird
-        startTime = 0L
-    }
-
     override fun onCreate() {
         super.onCreate()
-        player = ExoPlayer.Builder(this).build()
+
+        // 1. Audio Focus: Hier passiert die Magie für Anrufe etc.
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(C.USAGE_MEDIA)
+            .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+            .build()
+
+        player = ExoPlayer.Builder(this)
+            .setAudioAttributes(audioAttributes, true) // Automatischer Fokus
+            .setHandleAudioBecomingNoisy(true)         // Pause bei Kopfhörer-Trennung
+            .build()
+
         player.addListener(playerListener)
 
-        // Das Intent, das die MainActivity öffnet
         val intent = Intent(this, MainActivity::class.java).apply {
-            putExtra("OPEN_PLAYER", true) // Markierung setzen
+            putExtra("OPEN_PLAYER", true)
         }
         val pendingIntent = PendingIntent.getActivity(
-            this,
-            0,
-            intent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            this, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        // MediaSession mit dem PendingIntent verknüpfen
+        // 2. MediaSession ohne Callbacks (Standard-Verhalten nutzen)
         mediaSession = MediaSession.Builder(this, player)
-            .setSessionActivity(pendingIntent) // DAS ermöglicht den Klick auf die Notification
+            .setSessionActivity(pendingIntent)
             .build()
     }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
-        return mediaSession
-    }
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
 
     override fun onDestroy() {
-        saveCurrentTracking() // Letzte Zeit sichern beim Schließen
+        saveCurrentTracking()
         serviceScope.cancel()
         mediaSession?.run {
             player.removeListener(playerListener)
@@ -127,10 +115,36 @@ class PlaybackService : MediaSessionService() {
         super.onDestroy()
     }
 
+    // ... saveCurrentTracking() und onTaskRemoved() bleiben gleich wie in deinem Code ...
+
+    private fun saveCurrentTracking() {
+        val item = currentMediaItem ?: return
+        val start = startTime
+        if (start == 0L) return
+        val listenedMs = System.currentTimeMillis() - start
+        if (listenedMs > 2000L) {
+            val calendar = Calendar.getInstance()
+            val db = AppDatabase.getDatabase(this@PlaybackService)
+            val historyEntry = PlaybackHistory(
+                songId = item.mediaId.toLongOrNull() ?: 0L,
+                songTitle = item.mediaMetadata.title?.toString() ?: "Unknown",
+                artist = item.mediaMetadata.artist?.toString() ?: "Unknown",
+                album = item.mediaMetadata.albumTitle?.toString() ?: "Unknown",
+                duration = listenedMs,
+                timestamp = System.currentTimeMillis(),
+                year = calendar.get(Calendar.YEAR),
+                month = calendar.get(Calendar.MONTH) + 1,
+                day = calendar.get(Calendar.DAY_OF_MONTH)
+            )
+            serviceScope.launch(Dispatchers.IO) {
+                db.historyDao().insert(historyEntry)
+            }
+        }
+        startTime = 0L
+    }
+
     override fun onTaskRemoved(rootIntent: Intent?) {
         val player = mediaSession?.player
-        // Nur stoppen, wenn NICHTS spielt.
-        // Wenn player?.isPlaying true ist, NICHT stopSelf() aufrufen!
         if (player == null || !player.playWhenReady || player.mediaItemCount == 0) {
             stopSelf()
         }

@@ -80,9 +80,9 @@ class MainActivity : AppCompatActivity() {
                     popup.setOnMenuItemClickListener { item ->
                         val fragment = myAdapter.getFragment(2) as? AlbumsFragment
                         when (item.itemId) {
-                            R.id.grid_2 -> { fragment?.changeGridColumns(2); true }
-                            R.id.grid_3 -> { fragment?.changeGridColumns(3); true }
-                            R.id.grid_4 -> { fragment?.changeGridColumns(4); true }
+                            R.id.grid_2 -> { saveGridSetting("albums_grid", 2); fragment?.changeGridColumns(2); true }
+                            R.id.grid_3 -> { saveGridSetting("albums_grid", 3); fragment?.changeGridColumns(3); true }
+                            R.id.grid_4 -> { saveGridSetting("albums_grid", 4); fragment?.changeGridColumns(4); true }
                             else -> false
                         }
                     }
@@ -90,9 +90,14 @@ class MainActivity : AppCompatActivity() {
                 3 -> { // Artists Tab
                     popup.menuInflater.inflate(R.menu.menu_artists, popup.menu)
                     popup.setOnMenuItemClickListener { item ->
-                        val fragment = myAdapter.getFragment(3) as? ArtistsFragment
+                        // In der MainActivity im Popup-Menü für Artists
                         if (item.itemId == R.id.action_toggle_view) {
-                            fragment?.toggleViewMode()
+                            val fragment = myAdapter.getFragment(3) as? ArtistsFragment
+                            val isNowList = fragment?.toggleViewMode() ?: false
+
+                            // Einstellung speichern
+                            val prefs = getSharedPreferences("LMNT_Settings", MODE_PRIVATE)
+                            prefs.edit().putBoolean("artists_is_list", isNowList).apply()
                             true
                         } else false
                     }
@@ -126,10 +131,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         customSearchView.setOnCloseListener {
-            customSearchView.visibility = View.GONE
-            normalLayout.visibility = View.VISIBLE
-            false
+            closeSearchAndResetFilter()
+            false // false bedeutet, das System führt das Standard-Schließen aus
         }
+
+
+
 
         customSearchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?): Boolean = false
@@ -149,8 +156,7 @@ class MainActivity : AppCompatActivity() {
                 val toolbar = findViewById<LinearLayout>(R.id.normalToolbarLayout)
 
                 if (searchView.visibility == View.VISIBLE) {
-                    searchView.visibility = View.GONE
-                    toolbar.visibility = View.VISIBLE
+                    closeSearchAndResetFilter()
                 } else if (supportFragmentManager.backStackEntryCount > 0) {
                     supportFragmentManager.popBackStack()
                     if (supportFragmentManager.backStackEntryCount <= 1) {
@@ -168,6 +174,23 @@ class MainActivity : AppCompatActivity() {
 
     }
 
+    // Hilfsfunktion in der MainActivity
+    private fun closeSearchAndResetFilter() {
+        val normalLayout = findViewById<LinearLayout>(R.id.normalToolbarLayout)
+        val customSearchView = findViewById<SearchView>(R.id.customSearchView)
+
+        if (customSearchView.visibility == View.VISIBLE) {
+            customSearchView.setQuery("", false) // Text löschen
+            musicViewModel.filterAll("")         // Filter im ViewModel zurücksetzen
+            customSearchView.visibility = View.GONE
+            normalLayout.visibility = View.VISIBLE
+        }
+    }
+
+    private fun saveGridSetting(key: String, value: Int) {
+        val prefs = getSharedPreferences("LMNT_Settings", MODE_PRIVATE)
+        prefs.edit().putInt(key, value).apply()
+    }
     private fun checkPermissionsAndLoadData() {
         val permission = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             android.Manifest.permission.READ_MEDIA_AUDIO
@@ -214,16 +237,16 @@ class MainActivity : AppCompatActivity() {
     }
     private fun setupViewPager() {
         val fragments = listOf(
-            HomeFragment(),
-            SongsFragment(),
-            AlbumsFragment(),
-            ArtistsFragment(),
-            PlaylistsFragment()
+            HomeFragment(), SongsFragment(), AlbumsFragment(), ArtistsFragment(), PlaylistsFragment()
         )
         myAdapter = ViewPagerAdapter(this, fragments)
         viewPager.adapter = myAdapter
+        viewPager.isUserInputEnabled = false
 
         bottomNavigation.setOnItemSelectedListener { item ->
+            // --- NEU: Suche schließen & Filter leeren bei Tab-Wechsel ---
+            closeSearchAndResetFilter()
+
             when (item.itemId) {
                 R.id.nav_home -> viewPager.currentItem = 0
                 R.id.nav_songs -> viewPager.currentItem = 1
@@ -233,6 +256,8 @@ class MainActivity : AppCompatActivity() {
             }
             true
         }
+
+
 
         viewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
             override fun onPageSelected(position: Int) {
