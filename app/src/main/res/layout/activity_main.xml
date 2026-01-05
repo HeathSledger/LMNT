@@ -204,6 +204,8 @@
         android:elevation="20dp"
         android:visibility="gone"
         android:background="#121212"
+        android:clickable="true"
+        android:focusable="true"
         app:layout_constraintTop_toBottomOf="@id/appBarLayout"
         app:layout_constraintBottom_toTopOf="@id/miniPlayer"
         app:layout_constraintStart_toStartOf="parent"
