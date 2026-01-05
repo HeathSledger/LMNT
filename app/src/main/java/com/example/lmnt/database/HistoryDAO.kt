@@ -48,6 +48,26 @@ interface HistoryDao {
 
     @Query("SELECT SUM(duration) FROM playback_history")
     suspend fun getAllTimeTotalPlaytimeMs(): Long?
+
+    @Insert(onConflict = androidx.room.OnConflictStrategy.IGNORE)
+    suspend fun insertInitialMetadata(metadata: SongMetadata)
+
+    @Query("UPDATE song_metadata SET lastPlayed = :timestamp, playCount = playCount + 1 WHERE songId = :id")
+    suspend fun updateLastPlayed(id: Long, timestamp: Long)
+
+    @Query("SELECT * FROM song_metadata WHERE lastPlayed < :threshold OR lastPlayed = 0")
+    suspend fun getRediscoverMetadata(threshold: Long): List<SongMetadata>
+
+    @Query("UPDATE song_metadata SET isFavorite = :isFavorite WHERE songId = :id")
+    suspend fun setFavorite(id: Long, isFavorite: Boolean)
+
+    @Query("""
+    SELECT songId FROM playback_history 
+    GROUP BY songId 
+    ORDER BY MAX(timestamp) DESC 
+    LIMIT :limit
+""")
+    fun getRecentPlayedIdsFlow(limit: Int): kotlinx.coroutines.flow.Flow<List<Long>>
 }
 
 // --- Aktualisierte Hilfsklassen ---

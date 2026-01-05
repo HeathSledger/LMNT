@@ -122,9 +122,12 @@ class PlaybackService : MediaSessionService() {
         val start = startTime
         if (start == 0L) return
         val listenedMs = System.currentTimeMillis() - start
+
         if (listenedMs > 2000L) {
             val calendar = Calendar.getInstance()
             val db = AppDatabase.getDatabase(this@PlaybackService)
+            val songId = item.mediaId.toLongOrNull() ?: 0L
+
             val historyEntry = PlaybackHistory(
                 songId = item.mediaId.toLongOrNull() ?: 0L,
                 songTitle = item.mediaMetadata.title?.toString() ?: "Unknown",
@@ -138,6 +141,8 @@ class PlaybackService : MediaSessionService() {
             )
             serviceScope.launch(Dispatchers.IO) {
                 db.historyDao().insert(historyEntry)
+
+                db.historyDao().updateLastPlayed(songId, System.currentTimeMillis())
             }
         }
         startTime = 0L

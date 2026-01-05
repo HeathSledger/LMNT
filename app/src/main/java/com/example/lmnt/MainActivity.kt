@@ -14,8 +14,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.net.toUri
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -23,17 +23,18 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import androidx.viewpager2.widget.ViewPager2
 import coil.load
+import com.example.lmnt.database.AppDatabase
+import com.example.lmnt.database.SongMetadata
 import com.example.lmnt.service.PlaybackService
 import com.example.lmnt.ui.AlbumsFragment
 import com.example.lmnt.ui.ArtistsFragment
+import com.example.lmnt.ui.MenuHubFragment
 import com.example.lmnt.ui.theme.*
 import com.example.lmnt.viewmodel.MusicViewModel
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.common.util.concurrent.ListenableFuture
-import com.example.lmnt.ui.MenuHubFragment
-import com.google.common.util.concurrent.MoreExecutors
-import java.io.File
-
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
@@ -50,79 +51,29 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        val btnSettings = findViewById<ImageButton>(R.id.btnSettings) // Deine ID anpassen
+        // --- Toolbar & Settings ---
+        val btnSettings = findViewById<ImageButton>(R.id.btnSettings)
         btnSettings.setOnClickListener {
-            val menuHub = MenuHubFragment()
-            menuHub.show(supportFragmentManager, "MenuHub")
+            MenuHubFragment().show(supportFragmentManager, "MenuHub")
         }
 
-        // In der onCreate deiner MainActivity
         val btnMore = findViewById<ImageButton>(R.id.btnMore)
-
         btnMore.setOnClickListener { view ->
-            val popup = androidx.appcompat.widget.PopupMenu(this, view)
-
-
-
-            when (viewPager.currentItem) {
-                1 -> { // Songs Tab
-                    popup.menuInflater.inflate(R.menu.menu_songs, popup.menu)
-                    popup.setOnMenuItemClickListener { item ->
-                        when (item.itemId) {
-                            R.id.sort_az -> { musicViewModel.sortSongs(true); true }
-                            R.id.sort_za -> { musicViewModel.sortSongs(false); true }
-                            else -> false
-                        }
-                    }
-                }
-                2 -> { // Alben Tab
-                    popup.menuInflater.inflate(R.menu.menu_albums, popup.menu)
-                    popup.setOnMenuItemClickListener { item ->
-                        val fragment = myAdapter.getFragment(2) as? AlbumsFragment
-                        when (item.itemId) {
-                            R.id.grid_2 -> { saveGridSetting("albums_grid", 2); fragment?.changeGridColumns(2); true }
-                            R.id.grid_3 -> { saveGridSetting("albums_grid", 3); fragment?.changeGridColumns(3); true }
-                            R.id.grid_4 -> { saveGridSetting("albums_grid", 4); fragment?.changeGridColumns(4); true }
-                            else -> false
-                        }
-                    }
-                }
-                3 -> { // Artists Tab
-                    popup.menuInflater.inflate(R.menu.menu_artists, popup.menu)
-                    popup.setOnMenuItemClickListener { item ->
-                        // In der MainActivity im Popup-Menü für Artists
-                        if (item.itemId == R.id.action_toggle_view) {
-                            val fragment = myAdapter.getFragment(3) as? ArtistsFragment
-                            val isNowList = fragment?.toggleViewMode() ?: false
-
-                            // Einstellung speichern
-                            val prefs = getSharedPreferences("LMNT_Settings", MODE_PRIVATE)
-                            prefs.edit().putBoolean("artists_is_list", isNowList).apply()
-                            true
-                        } else false
-                    }
-                }
-
-            } // Ende des when-Blocks
-
-            popup.show()
+            setupPopupMenu(view)
         }
 
-        // 1. ViewModel initialisieren
+        // --- ViewModel & UI ---
         musicViewModel = ViewModelProvider(this).get(MusicViewModel::class.java)
-
-        // 2. UI Elemente finden
         viewPager = findViewById(R.id.viewPager)
         bottomNavigation = findViewById(R.id.bottomNavigation)
         val normalLayout = findViewById<LinearLayout>(R.id.normalToolbarLayout)
         val customSearchView = findViewById<SearchView>(R.id.customSearchView)
         val btnSearch = findViewById<ImageButton>(R.id.btnSearch)
 
-        // 3. ViewPager & Daten Setup
         setupViewPager()
         checkPermissionsAndLoadData()
 
-        // 4. Such-Logik
+        // --- Search Logic ---
         btnSearch.setOnClickListener {
             normalLayout.visibility = View.GONE
             customSearchView.visibility = View.VISIBLE
@@ -132,28 +83,24 @@ class MainActivity : AppCompatActivity() {
 
         customSearchView.setOnCloseListener {
             closeSearchAndResetFilter()
-            false // false bedeutet, das System führt das Standard-Schließen aus
+            false
         }
-
-
-
 
         customSearchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?): Boolean = false
-
             override fun onQueryTextChange(newText: String?): Boolean {
-                // Das ViewModel filtert jetzt zentral für alle Fragmente gleichzeitig!
                 musicViewModel.filterAll(newText ?: "")
                 return true
             }
         })
 
-        // 5. Back Button Handling
+
+
+        // --- Back Button Handling ---
         onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 val fragmentContainer = findViewById<View>(R.id.fragment_container)
                 val searchView = findViewById<SearchView>(R.id.customSearchView)
-                val toolbar = findViewById<LinearLayout>(R.id.normalToolbarLayout)
 
                 if (searchView.visibility == View.VISIBLE) {
                     closeSearchAndResetFilter()
@@ -167,37 +114,71 @@ class MainActivity : AppCompatActivity() {
                     onBackPressedDispatcher.onBackPressed()
                     isEnabled = true
                 }
-
             }
-
         })
-
     }
 
-    // Hilfsfunktion in der MainActivity
+    private fun setupPopupMenu(view: View) {
+        val popup = androidx.appcompat.widget.PopupMenu(this, view)
+        when (viewPager.currentItem) {
+            1 -> { // Songs Tab
+                popup.menuInflater.inflate(R.menu.menu_songs, popup.menu)
+                popup.setOnMenuItemClickListener { item ->
+                    when (item.itemId) {
+                        R.id.sort_az -> { musicViewModel.sortSongs(true); true }
+                        R.id.sort_za -> { musicViewModel.sortSongs(false); true }
+                        else -> false
+                    }
+                }
+            }
+            2 -> { // Albums Tab
+                popup.menuInflater.inflate(R.menu.menu_albums, popup.menu)
+                popup.setOnMenuItemClickListener { item ->
+                    val fragment = myAdapter.getFragment(2) as? AlbumsFragment
+                    when (item.itemId) {
+                        R.id.grid_2 -> { saveGridSetting("albums_grid", 2); fragment?.changeGridColumns(2); true }
+                        R.id.grid_3 -> { saveGridSetting("albums_grid", 3); fragment?.changeGridColumns(3); true }
+                        R.id.grid_4 -> { saveGridSetting("albums_grid", 4); fragment?.changeGridColumns(4); true }
+                        else -> false
+                    }
+                }
+            }
+            3 -> { // Artists Tab
+                popup.menuInflater.inflate(R.menu.menu_artists, popup.menu)
+                popup.setOnMenuItemClickListener { item ->
+                    if (item.itemId == R.id.action_toggle_view) {
+                        val fragment = myAdapter.getFragment(3) as? ArtistsFragment
+                        val isNowList = fragment?.toggleViewMode() ?: false
+                        getSharedPreferences("LMNT_Settings", MODE_PRIVATE).edit().putBoolean("artists_is_list", isNowList).apply()
+                        true
+                    } else false
+                }
+            }
+        }
+        popup.show()
+    }
+
     private fun closeSearchAndResetFilter() {
         val normalLayout = findViewById<LinearLayout>(R.id.normalToolbarLayout)
         val customSearchView = findViewById<SearchView>(R.id.customSearchView)
-
         if (customSearchView.visibility == View.VISIBLE) {
-            customSearchView.setQuery("", false) // Text löschen
-            musicViewModel.filterAll("")         // Filter im ViewModel zurücksetzen
+            customSearchView.setQuery("", false)
+            musicViewModel.filterAll("")
             customSearchView.visibility = View.GONE
             normalLayout.visibility = View.VISIBLE
         }
     }
 
     private fun saveGridSetting(key: String, value: Int) {
-        val prefs = getSharedPreferences("LMNT_Settings", MODE_PRIVATE)
-        prefs.edit().putInt(key, value).apply()
+        getSharedPreferences("LMNT_Settings", MODE_PRIVATE).edit().putInt(key, value).apply()
     }
+
     private fun checkPermissionsAndLoadData() {
         val permission = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             android.Manifest.permission.READ_MEDIA_AUDIO
         } else {
             android.Manifest.permission.READ_EXTERNAL_STORAGE
         }
-
         if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED) {
             loadInitialData()
         } else {
@@ -205,48 +186,54 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 100 && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            loadInitialData()
-        }
-    }
-
     override fun onResume() {
         super.onResume()
         if (intent.getBooleanExtra("OPEN_PLAYER", false)) {
             intent.removeExtra("OPEN_PLAYER")
-            if (mediaController != null) {
-                openFullscreen()
-            } else {
-                shouldOpenPlayerOnConnect = true // Merken für später!
-            }
+            if (mediaController != null) openFullscreen() else shouldOpenPlayerOnConnect = true
         }
     }
 
-    // Wichtig, falls die App schon im Hintergrund offen war
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
     }
 
     private fun loadInitialData() {
-        musicViewModel.setSongs(MusicLoader.loadAllSongs(contentResolver))
+        val allSongs = MusicLoader.loadAllSongs(contentResolver)
+        musicViewModel.setSongs(allSongs)
         musicViewModel.setAlbums(MusicLoader.loadAlbums(contentResolver))
         musicViewModel.setArtists(MusicLoader.loadArtists(contentResolver))
+
+        val db = AppDatabase.getDatabase(this)
+        lifecycleScope.launch(Dispatchers.IO) {
+            allSongs.forEach { song ->
+                db.historyDao().insertInitialMetadata(SongMetadata(songId = song.id))
+            }
+        }
     }
+
+    // Diese Funktion sorgt dafür, dass Detail-Fragmente (wie History)
+    // den Container einblenden und korrekt angezeigt werden.
+    fun showFragment(fragment: androidx.fragment.app.Fragment) {
+        val container = findViewById<View>(R.id.fragment_container)
+        container.visibility = View.VISIBLE // Macht den Container für den User sichtbar
+
+        supportFragmentManager.beginTransaction()
+            .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out) // Schicker Übergang
+            .replace(R.id.fragment_container, fragment)
+            .addToBackStack(null) // Ermöglicht das Zurückkehren mit dem System-Back-Button
+            .commit()
+    }
+
     private fun setupViewPager() {
-        val fragments = listOf(
-            HomeFragment(), SongsFragment(), AlbumsFragment(), ArtistsFragment(), PlaylistsFragment()
-        )
+        val fragments = listOf(HomeFragment(), SongsFragment(), AlbumsFragment(), ArtistsFragment(), PlaylistsFragment())
         myAdapter = ViewPagerAdapter(this, fragments)
         viewPager.adapter = myAdapter
         viewPager.isUserInputEnabled = false
 
         bottomNavigation.setOnItemSelectedListener { item ->
-            // --- NEU: Suche schließen & Filter leeren bei Tab-Wechsel ---
             closeSearchAndResetFilter()
-
             when (item.itemId) {
                 R.id.nav_home -> viewPager.currentItem = 0
                 R.id.nav_songs -> viewPager.currentItem = 1
@@ -257,8 +244,6 @@ class MainActivity : AppCompatActivity() {
             true
         }
 
-
-
         viewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
             override fun onPageSelected(position: Int) {
                 if (position < bottomNavigation.menu.size()) {
@@ -268,16 +253,12 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-
-    // --- PLAYBACK ---
-
     fun playPlaylist(songs: List<Song>, startIndex: Int) {
-        if (mediaController == null) return // Sicherheit, falls Controller noch nicht bereit
-
+        val controller = mediaController ?: return
         val mediaItems = songs.map { song ->
             MediaItem.Builder()
                 .setMediaId(song.id.toString())
-                .setUri(Uri.parse(song.uri)) // Direkt parsen, nicht über File()
+                .setUri(Uri.parse(song.uri))
                 .setMediaMetadata(MediaMetadata.Builder()
                     .setTitle(song.title)
                     .setArtist(song.artist)
@@ -286,14 +267,10 @@ class MainActivity : AppCompatActivity() {
                     .build())
                 .build()
         }
-
-        mediaController?.let {
-            it.setMediaItems(mediaItems, startIndex, 0L)
-            it.prepare()
-            it.play()
-        }
+        controller.setMediaItems(mediaItems, startIndex, 0L)
+        controller.prepare()
+        controller.play()
     }
-
 
     override fun onStart() {
         super.onStart()
@@ -303,15 +280,11 @@ class MainActivity : AppCompatActivity() {
             try {
                 mediaController = controllerFuture?.get()
                 setupMiniPlayer()
-
-                // Hier prüfen, ob wir aus einer Notification kommen:
                 if (shouldOpenPlayerOnConnect) {
                     openFullscreen()
                     shouldOpenPlayerOnConnect = false
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+            } catch (e: Exception) { e.printStackTrace() }
         }, ContextCompat.getMainExecutor(this))
     }
 
@@ -328,7 +301,11 @@ class MainActivity : AppCompatActivity() {
         val albumArtIv = findViewById<ImageView>(R.id.miniPlayerAlbumArt)
         val playPauseBtn = findViewById<ImageButton>(R.id.btnMiniPlayerPlay)
 
-        // Hilfsfunktion zur UI-Aktualisierung (vermeidet doppelten Code)
+        // --- NEUE BUTTONS ---
+        val prevBtn = findViewById<ImageButton>(R.id.btnMiniPlayerPrev)
+        val nextBtn = findViewById<ImageButton>(R.id.btnMiniPlayerNext)
+        val closeBtn = findViewById<ImageButton>(R.id.btnMiniPlayerClose)
+
         fun updateUI(controller: Player) {
             val metadata = controller.mediaMetadata
             if (metadata.title != null) {
@@ -345,29 +322,36 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // 1. Sofortiger Check beim Verbinden
         mediaController?.let { updateUI(it) }
 
-        // 2. Listener für Änderungen während die App offen ist
         mediaController?.addListener(object : Player.Listener {
-            override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
-                updateUI(mediaController!!)
-            }
-
+            override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) = updateUI(mediaController!!)
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 playPauseBtn.setImageResource(if (isPlaying) R.drawable.player_pause else R.drawable.player_play)
                 if (isPlaying) miniPlayerLayout.visibility = View.VISIBLE
             }
-
-            override fun onPlaybackStateChanged(playbackState: Int) {
-                if (playbackState == Player.STATE_IDLE) {
-                    miniPlayerLayout.visibility = View.GONE
-                }
+            override fun onPlaybackStateChanged(state: Int) {
+                if (state == Player.STATE_IDLE) miniPlayerLayout.visibility = View.GONE
             }
         })
 
+        // --- LISTENERS FÜR NEUE BUTTONS ---
         playPauseBtn.setOnClickListener {
             mediaController?.let { if (it.isPlaying) it.pause() else it.play() }
+        }
+
+        nextBtn.setOnClickListener {
+            mediaController?.seekToNext()
+        }
+
+        prevBtn.setOnClickListener {
+            mediaController?.seekToPrevious()
+        }
+
+        closeBtn.setOnClickListener {
+            mediaController?.stop()
+            mediaController?.clearMediaItems()
+            miniPlayerLayout.visibility = View.GONE
         }
 
         miniPlayerLayout.setOnTouchListener(object : View.OnTouchListener {

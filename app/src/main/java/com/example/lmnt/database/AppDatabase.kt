@@ -5,7 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [PlaybackHistory::class], version = 3, exportSchema = false)
+@Database(entities = [PlaybackHistory::class, SongMetadata::class], version = 4, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun historyDao(): HistoryDao
 
@@ -30,3 +30,4 @@ abstract class AppDatabase : RoomDatabase() {
         }
     }
 }
+

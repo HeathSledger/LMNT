@@ -34,7 +34,7 @@ class StatisticsFragment : Fragment(R.layout.fragment_statistics) {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        val rvRecentlyAdded = view.findViewById<RecyclerView>(R.id.rvRecentlyAdded)
+
         val rvTopSongs = view.findViewById<RecyclerView>(R.id.rvTopSongs)
         val rvTopArtists = view.findViewById<RecyclerView>(R.id.rvTopArtists)
         val rvTopAlbums = view.findViewById<RecyclerView>(R.id.rvTopAlbums)
@@ -54,13 +54,6 @@ class StatisticsFragment : Fragment(R.layout.fragment_statistics) {
             val totalMs = allSongs.sumOf { it.duration.toLong() }
             tvTotalDuration.text = "Total Library Time: ${totalMs / (1000 * 60)} Min"
 
-            // 3. Recently Added - KORRIGIERT
-            val recentSongs = allSongs.takeLast(5).reversed()
-            rvRecentlyAdded.layoutManager = LinearLayoutManager(ctx)
-            rvRecentlyAdded.adapter = SongsAdapter(recentSongs) { index ->
-                // Wir nutzen direkt den Index vom Adapter
-                (activity as? MainActivity)?.playPlaylist(recentSongs, index)
-            }
 
             setupYearFilters(view, rvTopSongs, rvTopArtists, rvTopAlbums)
         }
