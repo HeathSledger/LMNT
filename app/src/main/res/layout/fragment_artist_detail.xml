@@ -10,6 +10,30 @@
     android:orientation="vertical"
     android:padding="16dp">
 
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="8dp">
+
+        <ImageButton
+            android:id="@+id/btnArtistPlayAll"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/player_play"
+            android:background="?attr/selectableItemBackgroundBorderless"
+             />
+
+        <ImageButton
+            android:id="@+id/btnArtistShuffle"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="16dp"
+            android:src="@drawable/arrows_shuffle"
+            android:background="?attr/selectableItemBackgroundBorderless"
+             />
+    </LinearLayout>
+
     <TextView
         android:id="@+id/tvArtistDetailName"
         android:layout_width="match_parent"

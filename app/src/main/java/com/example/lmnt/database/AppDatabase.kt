@@ -5,9 +5,22 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [PlaybackHistory::class, SongMetadata::class], version = 4, exportSchema = false)
+// Wir behalten PlaybackHistory und SongMetadata bei und fügen die Playlist-Funktionen hinzu.
+// Version 5 löscht durch fallbackToDestructiveMigration() die alten Tabellen und erstellt sie neu.
+@Database(
+    entities = [
+        PlaybackHistory::class,
+        SongMetadata::class,
+        Playlist::class,
+        PlaylistSongCrossRef::class
+    ],
+    version = 13,
+    exportSchema = false
+)
 abstract class AppDatabase : RoomDatabase() {
+
     abstract fun historyDao(): HistoryDao
+    abstract fun playlistDao(): PlaylistDao
 
     companion object {
         @Volatile
@@ -15,13 +28,13 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
+                // Wichtig: Room.databaseBuilder ist der korrekte Befehl
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "lmnt_database"
                 )
-                    // Ermöglicht Room, die alte Datenbank zu löschen und neu zu erstellen,
-                    // wenn sich das Schema (z.B. durch das neue 'album' Feld) geändert hat.
+                    // Behält die App stabil, wenn wir Entities hinzufügen oder ändern
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
@@ -30,4 +43,3 @@ abstract class AppDatabase : RoomDatabase() {
         }
     }
 }
-

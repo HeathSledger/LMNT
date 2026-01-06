@@ -2,6 +2,7 @@ package com.example.lmnt.ui
 
 import android.os.Bundle
 import android.view.View
+import android.widget.ImageButton
 import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -11,7 +12,7 @@ import com.example.lmnt.MusicLoader
 import com.example.lmnt.R
 import com.example.lmnt.adapter.AlbumAdapter
 import com.example.lmnt.SongsAdapter
-import com.example.lmnt.ui.AlbumDetailFragment
+import com.example.lmnt.Song
 
 class ArtistDetailFragment : Fragment(R.layout.fragment_artist_detail) {
 
@@ -24,17 +25,20 @@ class ArtistDetailFragment : Fragment(R.layout.fragment_artist_detail) {
         val rvAlben = view.findViewById<RecyclerView>(R.id.rvArtistAlbums)
         val rvSongs = view.findViewById<RecyclerView>(R.id.rvArtistSongs)
 
+        // Buttons für "Alle Abspielen" und "Shuffle"
+        val btnPlayAll = view.findViewById<ImageButton>(R.id.btnArtistPlayAll)
+        val btnShuffle = view.findViewById<ImageButton>(R.id.btnArtistShuffle)
+
         val mainActivity = (activity as? MainActivity)
 
-        // 1. Alben des Künstlers laden (Horizontal)
+        // 1. Daten laden
         val alben = MusicLoader.loadAlbenForArtist(requireContext().contentResolver, artistName)
+        val songs = MusicLoader.loadSongsForArtistName(requireContext().contentResolver, artistName)
+
+        // 2. Alben Setup (Horizontal)
         rvAlben.layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
-
-        // ALBUM ADAPTER SETZEN
         rvAlben.adapter = AlbumAdapter(alben) { album ->
-            // Öffnet das Album-Detail, wenn man auf ein Album des Künstlers klickt
             val albumDetailFragment = AlbumDetailFragment.newInstance(album.id, album.artworkUri)
-
             parentFragmentManager.beginTransaction()
                 .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out)
                 .replace(R.id.fragment_container, albumDetailFragment)
@@ -42,15 +46,33 @@ class ArtistDetailFragment : Fragment(R.layout.fragment_artist_detail) {
                 .commit()
         }
 
-        // 2. Alle Songs des Künstlers laden (Vertikal)
-        val songs = MusicLoader.loadSongsForArtistName(requireContext().contentResolver, artistName)
+        // 3. Songs Setup (Vertikal)
         rvSongs.layoutManager = LinearLayoutManager(context)
+        rvSongs.adapter = SongsAdapter(
+            songs = songs,
+            showTrackNumber = true,
+            onClick = { index ->
+                mainActivity?.playPlaylist(ArrayList(songs), index)
+            },
+            onLongClick = { song ->
+                mainActivity?.showSongOptions(song)
+            }
+        )
 
-        // Wir können direkt die Liste nutzen
-        rvSongs.adapter = SongsAdapter(songs, showTrackNumber = true) { index ->
-            // Der Adapter liefert uns jetzt direkt die Position (Int)
-            // Wir rufen die playPlaylist der MainActivity mit der Liste und dem Index auf
-            mainActivity?.playPlaylist(songs, index)
+        // 4. "Alle abspielen" Logik
+        btnPlayAll?.setOnClickListener {
+            if (songs.isNotEmpty()) {
+                mainActivity?.playPlaylist(ArrayList(songs), 0)
+            }
+        }
+
+        // 5. "Shuffle" Logik
+        btnShuffle?.setOnClickListener {
+            if (songs.isNotEmpty()) {
+                val shuffledSongs = ArrayList(songs)
+                shuffledSongs.shuffle()
+                mainActivity?.playPlaylist(shuffledSongs, 0)
+            }
         }
     }
 

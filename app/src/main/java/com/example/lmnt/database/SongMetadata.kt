@@ -3,7 +3,7 @@ package com.example.lmnt.database
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "song_metadata")
+@Entity(tableName = "song_metadata") // Füge das hier hinzu!
 data class SongMetadata(
     @PrimaryKey val songId: Long,
     val lastPlayed: Long = 0L,

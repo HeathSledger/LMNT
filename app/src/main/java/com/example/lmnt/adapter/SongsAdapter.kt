@@ -13,7 +13,8 @@ import java.util.*
 class SongsAdapter(
     private val songs: List<Song>,
     private val showTrackNumber: Boolean = false,
-    private val onClick: (Int) -> Unit
+    private val onClick: (Int) -> Unit,
+    private val onLongClick: ((Song) -> Unit)? = null // Optionaler Callback
 ) : RecyclerView.Adapter<SongsAdapter.SongViewHolder>(), SectionIndexer {
 
     // --- SectionIndexer Logik ---
@@ -24,14 +25,13 @@ class SongsAdapter(
         setupSections()
     }
 
-    // Berechnet die Buchstaben-Einteilung
+    // Muss public sein, damit das Fragment es nach dem Filtern triggern kann
     fun setupSections() {
         val sectionList = mutableListOf<String>()
         val positionList = mutableListOf<Int>()
 
         for (i in songs.indices) {
             val title = songs[i].title
-            // Nimm den ersten Buchstaben oder # für Zahlen/Sonderzeichen
             val firstChar = if (title.isNotEmpty()) title[0].uppercaseChar() else '#'
             val section = if (firstChar.isLetter()) firstChar.toString() else "#"
 
@@ -57,7 +57,6 @@ class SongsAdapter(
         val section = if (firstChar.isLetter()) firstChar.toString() else "#"
         return sections.indexOf(section).coerceAtLeast(0)
     }
-    // --- Ende SectionIndexer ---
 
     class SongViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val tvTrackNumber: TextView = view.findViewById(R.id.tvTrackNumber)
@@ -78,22 +77,37 @@ class SongsAdapter(
         holder.tvTitle.text = song.title
         holder.tvArtist.text = song.artist
 
+        // Click-Logik
+        holder.itemView.setOnClickListener {
+            onClick(position)
+        }
+
+        // Long-Click-Logik für Song-Optionen
+        holder.itemView.setOnLongClickListener {
+            // Entweder über den übergebenen Callback oder direkt via Activity
+            if (onLongClick != null) {
+                onLongClick.invoke(song)
+            } else {
+                (holder.itemView.context as? MainActivity)?.showSongOptions(song)
+            }
+            true
+        }
+
+        // Bild laden
         Glide.with(holder.itemView.context)
             .load(song.artworkUri)
             .placeholder(R.drawable.ic_music_note)
             .error(R.drawable.ic_music_note)
             .into(holder.ivCover)
 
+        // Tracknummer Anzeige
         if (showTrackNumber) {
             holder.tvTrackNumber.visibility = View.VISIBLE
             holder.tvTrackNumber.text = String.format("%02d", song.trackNumber)
         } else {
             holder.tvTrackNumber.visibility = View.GONE
         }
+    }
 
-        holder.itemView.setOnClickListener {
-            onClick(position)
-        }
-    }
-        override fun getItemCount(): Int = songs.size
-    }
+    override fun getItemCount(): Int = songs.size
+}

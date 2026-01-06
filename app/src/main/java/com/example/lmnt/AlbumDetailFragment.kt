@@ -43,11 +43,17 @@ class AlbumDetailFragment : Fragment(R.layout.fragment_album_detail) {
         // 4. RecyclerView Setup
         recyclerView.layoutManager = LinearLayoutManager(context)
 
-        // Der Adapter liefert uns jetzt direkt den 'index' (Position)
-        recyclerView.adapter = SongsAdapter(sortedSongs, showTrackNumber = true) { index ->
-            // Da wir den Index schon haben, können wir ihn direkt nutzen
-            mainActivity?.playPlaylist(sortedSongs, index)
-        }
+        // Nutze benannte Argumente, um Verwechslungen mit dem neuen onLongClick zu vermeiden
+        recyclerView.adapter = SongsAdapter(
+            songs = sortedSongs,
+            showTrackNumber = true,
+            onClick = { index ->
+                mainActivity?.playPlaylist(ArrayList(sortedSongs), index)
+            },
+            onLongClick = { song ->
+                mainActivity?.showSongOptions(song)
+            }
+        )
     }
 
     companion object {

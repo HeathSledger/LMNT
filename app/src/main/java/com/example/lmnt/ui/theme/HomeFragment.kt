@@ -9,10 +9,10 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.lmnt.MainActivity
 import com.example.lmnt.MusicLoader
 import com.example.lmnt.R
+import com.example.lmnt.Song
 import com.example.lmnt.adapter.RecentlyAddedAdapter
 import com.example.lmnt.database.AppDatabase
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -27,7 +27,11 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         // 1. Begrüßung & Shuffle
         view.findViewById<TextView>(R.id.tvGreeting).text = getGreeting()
         view.findViewById<View>(R.id.btnRandomPlay).setOnClickListener {
-            if (allSongs.isNotEmpty()) (activity as? MainActivity)?.playPlaylist(allSongs.shuffled(), 0)
+            if (allSongs.isNotEmpty()) {
+                // KORREKTUR: List zu ArrayList konvertieren
+                val shuffledList = ArrayList(allSongs.shuffled())
+                (activity as? MainActivity)?.playPlaylist(shuffledList, 0)
+            }
         }
 
         // 2. See All History
@@ -44,13 +48,13 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         val recentAddedSongs = MusicLoader.loadRecentlyAdded(requireContext().contentResolver, limit = 15)
         rvRecentlyAdded.adapter = RecentlyAddedAdapter(recentAddedSongs) { song ->
             val index = recentAddedSongs.indexOf(song)
-            (activity as? MainActivity)?.playPlaylist(recentAddedSongs, index)
+            // KORREKTUR: ArrayList explizit erstellen
+            (activity as? MainActivity)?.playPlaylist(ArrayList(recentAddedSongs), index)
         }
 
-        // 4. LIVE: Recently Played (Optimiert)
+        // 4. LIVE: Recently Played
         lifecycleScope.launch(Dispatchers.IO) {
             db.historyDao().getRecentPlayedIdsFlow(15).collect { historyIds ->
-                // Mapping auf Hintergrund-Thread
                 val recentPlayedSongs = historyIds.mapNotNull { id ->
                     allSongs.find { it.id == id }
                 }
@@ -59,7 +63,8 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                     if (!isAdded) return@withContext
                     rvRecentlyPlayed.adapter = RecentlyAddedAdapter(recentPlayedSongs) { song ->
                         val index = recentPlayedSongs.indexOf(song)
-                        (activity as? MainActivity)?.playPlaylist(recentPlayedSongs, index)
+                        // KORREKTUR: ArrayList explizit erstellen
+                        (activity as? MainActivity)?.playPlaylist(ArrayList(recentPlayedSongs), index)
                     }
                     tvSeeAll.visibility = if (recentPlayedSongs.isNotEmpty()) View.VISIBLE else View.GONE
                 }
@@ -77,7 +82,8 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                 if (!isAdded) return@withContext
                 rvRediscover.adapter = RecentlyAddedAdapter(rediscoverSongs) { song ->
                     val index = rediscoverSongs.indexOf(song)
-                    (activity as? MainActivity)?.playPlaylist(rediscoverSongs, index)
+                    // KORREKTUR: ArrayList explizit erstellen
+                    (activity as? MainActivity)?.playPlaylist(ArrayList(rediscoverSongs), index)
                 }
             }
         }

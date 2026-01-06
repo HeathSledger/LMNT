@@ -26,6 +26,7 @@ class PlaybackService : MediaSessionService() {
     private var currentMediaItem: MediaItem? = null
     private var fadeJob: Job? = null
 
+    // --- FADE LOGIK ---
     private fun fadeVolume(targetVolume: Float, durationMs: Long) {
         fadeJob?.cancel()
         fadeJob = serviceScope.launch {
@@ -47,7 +48,7 @@ class PlaybackService : MediaSessionService() {
             saveCurrentTracking()
             currentMediaItem = mediaItem
 
-            // Sanftes Einblenden bei jedem neuen Song
+            // Sanftes Einblenden
             player.volume = 0f
             fadeVolume(1f, 800L)
 
@@ -75,14 +76,14 @@ class PlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
 
-        // 1. Audio Focus: Hier passiert die Magie für Anrufe etc.
+        // Audio Attributes für Audio Focus & Bluetooth
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(C.USAGE_MEDIA)
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
             .build()
 
         player = ExoPlayer.Builder(this)
-            .setAudioAttributes(audioAttributes, true) // Automatischer Fokus
+            .setAudioAttributes(audioAttributes, true) // Fokus-Handling
             .setHandleAudioBecomingNoisy(true)         // Pause bei Kopfhörer-Trennung
             .build()
 
@@ -95,10 +96,15 @@ class PlaybackService : MediaSessionService() {
             this, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        // 2. MediaSession ohne Callbacks (Standard-Verhalten nutzen)
         mediaSession = MediaSession.Builder(this, player)
             .setSessionActivity(pendingIntent)
             .build()
+    }
+
+    // WICHTIG: Verhindert, dass der Player bei Pause aus der Notification verschwindet
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        super.onStartCommand(intent, flags, startId)
+        return START_STICKY
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
@@ -115,21 +121,20 @@ class PlaybackService : MediaSessionService() {
         super.onDestroy()
     }
 
-    // ... saveCurrentTracking() und onTaskRemoved() bleiben gleich wie in deinem Code ...
-
     private fun saveCurrentTracking() {
         val item = currentMediaItem ?: return
         val start = startTime
         if (start == 0L) return
         val listenedMs = System.currentTimeMillis() - start
 
+        // Wir tracken nur, wenn mindestens 2 Sekunden gehört wurden
         if (listenedMs > 2000L) {
             val calendar = Calendar.getInstance()
             val db = AppDatabase.getDatabase(this@PlaybackService)
             val songId = item.mediaId.toLongOrNull() ?: 0L
 
             val historyEntry = PlaybackHistory(
-                songId = item.mediaId.toLongOrNull() ?: 0L,
+                songId = songId,
                 songTitle = item.mediaMetadata.title?.toString() ?: "Unknown",
                 artist = item.mediaMetadata.artist?.toString() ?: "Unknown",
                 album = item.mediaMetadata.albumTitle?.toString() ?: "Unknown",
@@ -141,7 +146,6 @@ class PlaybackService : MediaSessionService() {
             )
             serviceScope.launch(Dispatchers.IO) {
                 db.historyDao().insert(historyEntry)
-
                 db.historyDao().updateLastPlayed(songId, System.currentTimeMillis())
             }
         }
@@ -150,6 +154,7 @@ class PlaybackService : MediaSessionService() {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         val player = mediaSession?.player
+        // Nur stoppen, wenn nicht mehr abgespielt wird
         if (player == null || !player.playWhenReady || player.mediaItemCount == 0) {
             stopSelf()
         }

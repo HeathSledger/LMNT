@@ -110,20 +110,28 @@ class StatisticsFragment : Fragment(R.layout.fragment_statistics) {
             val totalMinutes = (totalYearlyMs ?: 0L) / (1000 * 60)
             tvYearlyTimeValue.text = "$totalMinutes Minutes"
 
-            // 2. Top Songs - KORRIGIERT
+            // 2. Top Songs
             val topEntries = if (year != null) db.historyDao().getTopSongsOfYear(year) else db.historyDao().getAllTimeTopSongs()
             val topSongsList = topEntries.mapNotNull { entry -> allSongs.find { it.id == entry.songId } }
 
             rvSongs.layoutManager = LinearLayoutManager(context)
-            rvSongs.adapter = SongsAdapter(topSongsList) { index ->
-                // Wir nutzen direkt den Index vom Adapter
-                (activity as? MainActivity)?.playPlaylist(topSongsList, index)
-            }
+            rvSongs.adapter = SongsAdapter(
+                songs = topSongsList,
+                showTrackNumber = false,
+                onClick = { index ->
+                    (activity as? MainActivity)?.playPlaylist(ArrayList(topSongsList), index)
+                },
+                onLongClick = { song ->
+                    (activity as? MainActivity)?.showSongOptions(song)
+                } // Hier fehlte die Klammer }
+            ) // Hier fehlte die Klammer )
 
+            // 3. Top Artists
             val topArtistsData = if (year != null) db.historyDao().getTop5Artists(year) else db.historyDao().getAllTimeTopArtists()
             rvArtists.layoutManager = LinearLayoutManager(context)
             rvArtists.adapter = TopArtistAdapter(topArtistsData, allAlbums)
 
+            // 4. Top Albums
             val topAlbumsData = if (year != null) db.historyDao().getTop5Albums(year) else db.historyDao().getAllTimeTopAlbums()
             rvAlbums.layoutManager = LinearLayoutManager(context)
             rvAlbums.adapter = TopAlbumAdapter(topAlbumsData, allAlbums)
